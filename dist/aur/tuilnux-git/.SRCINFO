@@ -1,6 +1,6 @@
 pkgbase = tuilnux-git
 	pkgdesc = Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps (git version)
-	pkgver = 0.2.0.r0.g7f6b607
+	pkgver = 0.2.1.r0.g6385d6b
 	pkgrel = 1
 	url = https://github.com/DNSx64/TUILNUX
 	install = tuilnux.install
@@ -24,7 +24,7 @@ pkgbase = tuilnux-git
 	optdepends = cage: alternative kiosk backend
 	optdepends = gpm: mouse clicks on the plain Linux console
 	optdepends = terminus-font: proper box drawing on the Linux console
-	provides = tuilnux=0.2.0
+	provides = tuilnux=0.2.1
 	conflicts = tuilnux
 	options = !debug
 	backup = etc/tuilnux/session.conf

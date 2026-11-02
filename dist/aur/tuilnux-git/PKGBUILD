@@ -2,7 +2,7 @@
 
 pkgname=tuilnux-git
 _pkgname=tuilnux
-pkgver=0.2.0.r0.g7f6b607
+pkgver=0.2.1.r0.g6385d6b
 pkgrel=1
 pkgdesc="Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps (git version)"
 arch=('x86_64' 'aarch64')

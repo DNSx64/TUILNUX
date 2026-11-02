@@ -214,10 +214,13 @@ sudo systemctl enable greetd.service
    ```sh
    gh release download repo -p 'tuilnux.db.tar.gz' -p 'tuilnux.files.tar.gz' -R DNSx64/TUILNUX
    repo-add -R tuilnux.db.tar.gz tuilnux-X.Y.Z-1-x86_64.pkg.tar.zst
-   cp -L tuilnux.db.tar.gz tuilnux.db && cp -L tuilnux.files.tar.gz tuilnux.files
+   # tuilnux.db/.files sind Symlinks – gh lädt den Inhalt hoch
    gh release upload repo --clobber -R DNSx64/TUILNUX tuilnux.db tuilnux.db.tar.gz \
        tuilnux.files tuilnux.files.tar.gz tuilnux-X.Y.Z-1-x86_64.pkg.tar.zst
    ```
+5. `.deb`/`.rpm`/Tarball und Paketquellen: `bash dist/pkg/build.sh`, Dateien aus
+   `target/packages/` ans Release `vX.Y.Z` hängen, `bash dist/pkg/repo.sh` und den Inhalt von
+   `target/pages/` in den Branch `gh-pages` committen.
 
 ### 3.4 Andere Distributionen
 

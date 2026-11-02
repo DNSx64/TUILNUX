@@ -1,6 +1,6 @@
 pkgbase = tuilnux
 	pkgdesc = Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps
-	pkgver = 0.2.0
+	pkgver = 0.2.1
 	pkgrel = 1
 	url = https://github.com/DNSx64/TUILNUX
 	install = tuilnux.install
@@ -25,7 +25,7 @@ pkgbase = tuilnux
 	optdepends = terminus-font: proper box drawing on the Linux console
 	options = !debug
 	backup = etc/tuilnux/session.conf
-	source = tuilnux-0.2.0.tar.gz::https://github.com/DNSx64/TUILNUX/archive/refs/tags/v0.2.0.tar.gz
-	sha256sums = 6311e6ea61d5d5a23abbbd08f2906eb03afe489dedbf34a408c1bd0d278c5072
+	source = tuilnux-0.2.1.tar.gz::https://github.com/DNSx64/TUILNUX/archive/refs/tags/v0.2.1.tar.gz
+	sha256sums = 730b3689d499b4742b6ff3a9ced31ccb7976491aaef79103524a69a419933195
 
 pkgname = tuilnux
