@@ -1,0 +1,8 @@
+[package]
+name = "tuilnux-window-manager"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ratatui = "0.30.2"

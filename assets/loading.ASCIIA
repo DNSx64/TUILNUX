@@ -1,0 +1,84 @@
+# Ladeanimation – endlos, Abbruch mit Ctrl+C
+[meta]
+version = 1
+fps = 12
+loop = true
+
+[palette]
+accent = #5fd7af
+
+[frame color=accent]
+  ⠋ Lade TUILNUX-Module  ░░░░░░░░░░░░░░░░░░░░░░░░   0%
+
+[frame color=accent]
+  ⠙ Lade TUILNUX-Module  █░░░░░░░░░░░░░░░░░░░░░░░   4%
+
+[frame color=accent]
+  ⠹ Lade TUILNUX-Module  ██░░░░░░░░░░░░░░░░░░░░░░   8%
+
+[frame color=accent]
+  ⠸ Lade TUILNUX-Module  ███░░░░░░░░░░░░░░░░░░░░░  12%
+
+[frame color=accent]
+  ⠼ Lade TUILNUX-Module  ████░░░░░░░░░░░░░░░░░░░░  17%
+
+[frame color=accent]
+  ⠴ Lade TUILNUX-Module  █████░░░░░░░░░░░░░░░░░░░  21%
+
+[frame color=accent]
+  ⠦ Lade TUILNUX-Module  ██████░░░░░░░░░░░░░░░░░░  25%
+
+[frame color=accent]
+  ⠧ Lade TUILNUX-Module  ███████░░░░░░░░░░░░░░░░░  29%
+
+[frame color=accent]
+  ⠇ Lade TUILNUX-Module  ████████░░░░░░░░░░░░░░░░  33%
+
+[frame color=accent]
+  ⠏ Lade TUILNUX-Module  █████████░░░░░░░░░░░░░░░  38%
+
+[frame color=accent]
+  ⠋ Lade TUILNUX-Module  ██████████░░░░░░░░░░░░░░  42%
+
+[frame color=accent]
+  ⠙ Lade TUILNUX-Module  ███████████░░░░░░░░░░░░░  46%
+
+[frame color=accent]
+  ⠹ Lade TUILNUX-Module  ████████████░░░░░░░░░░░░  50%
+
+[frame color=accent]
+  ⠸ Lade TUILNUX-Module  █████████████░░░░░░░░░░░  54%
+
+[frame color=accent]
+  ⠼ Lade TUILNUX-Module  ██████████████░░░░░░░░░░  58%
+
+[frame color=accent]
+  ⠴ Lade TUILNUX-Module  ███████████████░░░░░░░░░  62%
+
+[frame color=accent]
+  ⠦ Lade TUILNUX-Module  ████████████████░░░░░░░░  67%
+
+[frame color=accent]
+  ⠧ Lade TUILNUX-Module  █████████████████░░░░░░░  71%
+
+[frame color=accent]
+  ⠇ Lade TUILNUX-Module  ██████████████████░░░░░░  75%
+
+[frame color=accent]
+  ⠏ Lade TUILNUX-Module  ███████████████████░░░░░  79%
+
+[frame color=accent]
+  ⠋ Lade TUILNUX-Module  ████████████████████░░░░  83%
+
+[frame color=accent]
+  ⠙ Lade TUILNUX-Module  █████████████████████░░░  88%
+
+[frame color=accent]
+  ⠹ Lade TUILNUX-Module  ██████████████████████░░  92%
+
+[frame color=accent]
+  ⠸ Lade TUILNUX-Module  ███████████████████████░  96%
+
+[frame color=accent]
+  ⠼ Lade TUILNUX-Module  ████████████████████████ 100%
+

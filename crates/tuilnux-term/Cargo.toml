@@ -1,0 +1,13 @@
+[package]
+name = "tuilnux-term"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+portable-pty = "0.9.0"
+ratatui = "0.30.2"
+tuilnux-media = { path = "../tuilnux-media" }
+vt100 = "0.18.1"

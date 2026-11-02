@@ -1,0 +1,33 @@
+# Fensterrahmen in den TUILNUX-Farben (aus tuilnux.toml erzeugt)
+border.width: 1
+window.titlebar.padding.height: 2
+
+window.active.border.color: #5fd7af
+window.inactive.border.color: #444444
+
+window.active.title.bg.color: #264f45
+window.inactive.title.bg.color: #1c1c1c
+
+window.active.label.text.color: #5fd7af
+window.inactive.label.text.color: #6c6c6c
+window.label.text.justify: left
+
+window.active.button.unpressed.image.color: #d0d0d0
+window.inactive.button.unpressed.image.color: #6c6c6c
+window.active.button.close.unpressed.image.color: #ff5f5f
+window.button.hover.bg.color: #5fd7af40
+
+menu.border.color: #5fd7af
+menu.items.bg.color: #1c1c1c
+menu.items.text.color: #d0d0d0
+menu.items.active.bg.color: #264f45
+menu.items.active.text.color: #5fd7af
+menu.separator.color: #444444
+menu.title.bg.color: #264f45
+menu.title.text.color: #5fd7af
+
+osd.bg.color: #1c1c1c
+osd.border.color: #5fd7af
+osd.label.text.color: #d0d0d0
+osd.window-switcher.style-classic.item.active.border.color: #5fd7af
+osd.window-switcher.style-classic.item.active.bg.color: #264f45

@@ -1,0 +1,176 @@
+#!/bin/sh
+# tuilnux-session – startet die TUILNUX-Sitzung im passenden Backend.
+#
+#   labwc  tuilnux in einem Vollbild-Terminal (foot/kitty/alacritty) als Desktop
+#          unter dem Wayland-Compositor labwc. Grafische Programme (Firefox,
+#          Discord …) öffnen sich darüber als verschiebbare Fenster.
+#   cage   wie labwc, aber im Kiosk cage: nur das Terminal, keine echten
+#          Fenster für grafische Programme
+#   tty    tuilnux direkt auf der Linux-Konsole (TERM=linux, 16 Farben, Maus nur mit gpm)
+#   auto   labwc, sonst cage, sonst tty (Standard)
+#
+# Einstellungen: /etc/tuilnux/session.conf, danach ~/.config/tuilnux/session.conf
+#   TUILNUX_BACKEND=auto|labwc|cage|tty
+#   TUILNUX_TERMINAL=foot|kitty|alacritty
+#   TUILNUX_FONT=monospace:size=10   (Schrift für foot)
+# Die Umgebungsvariablen gleichen Namens haben Vorrang.
+# labwc-Konfiguration: ~/.config/tuilnux/labwc (von tsettings erzeugt),
+# sonst <prefix>/share/tuilnux/labwc
+# Protokoll des Compositors: ~/.local/state/tuilnux/compositor.log
+
+env_backend=${TUILNUX_BACKEND-}
+env_terminal=${TUILNUX_TERMINAL-}
+env_font=${TUILNUX_FONT-}
+for conf in /etc/tuilnux/session.conf "${XDG_CONFIG_HOME:-$HOME/.config}/tuilnux/session.conf"; do
+    # shellcheck disable=SC1090
+    [ -r "$conf" ] && . "$conf"
+done
+backend=${env_backend:-${TUILNUX_BACKEND:-auto}}
+terminal=${env_terminal:-${TUILNUX_TERMINAL:-}}
+font=${env_font:-${TUILNUX_FONT:-monospace:size=10}}
+
+# app_id/Klasse des Desktop-Terminals; labwc legt es per Fensterregel nach unten.
+APP_ID=tuilnux-desktop
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+pick_terminal() {
+    if [ -n "$terminal" ]; then
+        have "$terminal" && echo "$terminal"
+        return
+    fi
+    for t in foot kitty alacritty; do
+        if have "$t"; then
+            echo "$t"
+            return
+        fi
+    done
+}
+
+self=$0
+case $self in */*) ;; *) self=$(command -v "$self") ;; esac
+
+# Innerer Aufruf durch den Compositor: das Vollbild-Terminal mit tuilnux starten.
+if [ "${1-}" = --desktop-terminal ]; then
+    # session.conf hat die vom äußeren Aufruf exportierte Variable überschrieben.
+    export TUILNUX_BACKEND="$backend"
+    term=$(pick_terminal)
+    case "$term" in
+        # Vollbild statt maximiert: tuilnux reserviert per Layer-Shell den
+        # Streifen der Statusleiste, das bliebe sonst auch dem Desktop verwehrt.
+        # Ohne CSD und resize-by-cells füllt foot den ganzen Bildschirm.
+        foot) exec foot --fullscreen --app-id="$APP_ID" -o resize-by-cells=no -o csd.preferred=none -o "font=$font" tuilnux ;;
+        kitty) exec kitty --start-as=fullscreen --class "$APP_ID" -o hide_window_decorations=yes tuilnux ;;
+        alacritty) exec alacritty --class "$APP_ID" -o 'window.startup_mode="Fullscreen"' -e tuilnux ;;
+        *) exec "$term" tuilnux ;;
+    esac
+fi
+
+# Schon in einer grafischen Sitzung (z. B. aus sway gestartet): einfach hier laufen.
+if [ -n "${WAYLAND_DISPLAY-}" ] || [ -n "${DISPLAY-}" ]; then
+    backend='tty'
+fi
+
+on_vt() {
+    case "$(tty 2>/dev/null)" in
+        /dev/tty[0-9]*) return 0 ;;
+    esac
+    return 1
+}
+
+if [ "$backend" = auto ]; then
+    backend='tty'
+    if on_vt && [ -n "$(pick_terminal)" ]; then
+        if have labwc; then
+            backend=labwc
+        elif have cage; then
+            backend=cage
+        fi
+    fi
+fi
+
+labwc_config() {
+    for dir in "${XDG_CONFIG_HOME:-$HOME/.config}/tuilnux/labwc" \
+        "$(dirname "$self")/../share/tuilnux/labwc" \
+        /usr/share/tuilnux/labwc /usr/local/share/tuilnux/labwc; do
+        if [ -r "$dir/rc.xml" ]; then
+            echo "$dir"
+            return
+        fi
+    done
+}
+
+# GTK-Programme (Firefox …) zeichnen ihre Titelleiste selbst und zeigen ohne
+# GNOME nur „Schließen“. TUILNUX liefert eine settings.ini mit _ □ x; GTK3 unter
+# Wayland liest die Knöpfe aber aus gsettings, dort wird der GNOME-Standard
+# einmalig ersetzt (tsettings → GUI-Fenster → Titelknöpfe ändert ihn danach).
+gtk_defaults() {
+    for dir in "$(dirname "$self")/../share/tuilnux/xdg" /usr/share/tuilnux/xdg; do
+        if [ -d "$dir" ]; then
+            XDG_CONFIG_DIRS="$dir:${XDG_CONFIG_DIRS:-/etc/xdg}"
+            export XDG_CONFIG_DIRS
+            break
+        fi
+    done
+    have gsettings || return 0
+    schema=org.gnome.desktop.wm.preferences
+    if [ "$(gsettings get "$schema" button-layout 2>/dev/null)" = "'appmenu:close'" ]; then
+        gsettings set "$schema" button-layout 'appmenu:minimize,maximize,close' 2>/dev/null || true
+    fi
+}
+
+# Startet den Compositor ($@) und gibt seinen Exit-Code zurück; scheitert er
+# sofort, wird einmal mit dem Software-Renderer von wlroots neu versucht.
+run_compositor() {
+    log=/dev/null
+    log_dir=${XDG_STATE_HOME:-$HOME/.local/state}/tuilnux
+    mkdir -p "$log_dir" 2>/dev/null && log=$log_dir/compositor.log
+    start=$(date +%s)
+    rc=0
+    "$@" 2>"$log" || rc=$?
+    # Ohne 3D-Beschleunigung (VMs, fehlende Mesa-Treiber) scheitern EGL und Vulkan.
+    if [ "$rc" -ne 0 ] && [ $(($(date +%s) - start)) -lt 5 ] && [ -z "${WLR_RENDERER-}" ]; then
+        echo "--- erneuter Versuch mit WLR_RENDERER=pixman ---" >>"$log"
+        start=$(date +%s)
+        rc=0
+        WLR_RENDERER=pixman "$@" 2>>"$log" || rc=$?
+    fi
+}
+
+if [ "$backend" = labwc ] || [ "$backend" = cage ]; then
+    if ! have "$backend" || [ -z "$(pick_terminal)" ]; then
+        echo "tuilnux-session: $backend oder Terminal (foot/kitty/alacritty) fehlt – starte auf der Konsole." >&2
+        sleep 2
+        exec tuilnux
+    fi
+    # wlroots liest das Tastaturlayout nur aus XKB_DEFAULT_*; systemd-localed legt
+    # die Systemeinstellung (localectl set-x11-keymap) in vconsole.conf ab.
+    if [ -z "${XKB_DEFAULT_LAYOUT-}" ] && [ -r /etc/vconsole.conf ]; then
+        for key in LAYOUT VARIANT MODEL OPTIONS; do
+            value=$(sed -n "s/^XKB$key=//p" /etc/vconsole.conf | tr -d '"' | tail -n 1)
+            [ -n "$value" ] && export "XKB_DEFAULT_$key=$value"
+        done
+    fi
+    export TUILNUX_BACKEND="$backend"
+    gtk_defaults
+    if [ "$backend" = labwc ]; then
+        config=$(labwc_config)
+        if [ -n "$config" ]; then
+            run_compositor labwc -C "$config" -S "$self --desktop-terminal"
+        else
+            run_compositor labwc -S "$self --desktop-terminal"
+        fi
+    else
+        run_compositor cage -s -- "$self" --desktop-terminal
+    fi
+    # Compositor ist sofort gescheitert (keine GPU, kein Seat …): auf die Konsole ausweichen.
+    if [ "$rc" -ne 0 ] && [ $(($(date +%s) - start)) -lt 5 ]; then
+        printf '\033c'
+        echo "tuilnux-session: $backend konnte nicht starten (Code $rc, Protokoll: $log) – starte auf der Konsole." >&2
+        sleep 2
+        exec tuilnux
+    fi
+    exit "$rc"
+fi
+
+exec tuilnux

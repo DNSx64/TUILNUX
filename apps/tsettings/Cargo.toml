@@ -1,0 +1,15 @@
+[package]
+name = "tsettings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUILNUX-Einstellungen: Darstellung, Statusleiste, Fenster, Terminal, Tastatur, Maus, grafische Programme"
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+ratatui = "0.30.2"
+tuilnux-config = { path = "../../crates/tuilnux-config" }
+tuilnux-ipc = { path = "../../crates/tuilnux-ipc" }
+tuilnux-media = { path = "../../crates/tuilnux-media" }
+tuilnux-ui = { path = "../../crates/tuilnux-ui" }

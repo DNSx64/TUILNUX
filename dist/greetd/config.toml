@@ -1,0 +1,20 @@
+# /etc/greetd/config.toml – TUILNUX-Anmeldung auf TTY1
+#
+# Wird von ./install.sh eingerichtet (die vorherige Datei wird gesichert).
+# Von Hand (Arch):
+#   sudo pacman -S greetd
+#   sudo cp /usr/share/tuilnux/greetd/config.toml /etc/greetd/config.toml
+#   sudo systemctl enable greetd.service
+#
+# Nach der Anmeldung startet `tuilnux-session`: der Desktop mit Fenstern und Taskmanager,
+# je nach /etc/tuilnux/session.conf direkt auf der Konsole oder im Vollbild-Terminal (labwc/cage).
+# Per F2 wählbar: „Terminal“ (tterm, nur eine Shell) und „Bash“.
+# Eigene Sitzungen ersetzen diese beiden, z. B.:
+#   command = "tlogin --cmd tuilnux-session --session 'Konsole=tuilnux' --session 'Sway=sway'"
+
+[terminal]
+vt = 1
+
+[default_session]
+command = "tlogin --cmd tuilnux-session"
+user = "greeter"

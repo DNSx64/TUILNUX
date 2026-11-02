@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.sh text eol=lf
+dist/** text eol=lf
+*.ASCIIA text eol=lf
+*.png binary

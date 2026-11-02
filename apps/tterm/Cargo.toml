@@ -1,0 +1,13 @@
+[package]
+name = "tterm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+ratatui = "0.30.2"
+tuilnux-status = { path = "../../crates/tuilnux-status" }
+tuilnux-term = { path = "../../crates/tuilnux-term" }
+tuilnux-ui = { path = "../../crates/tuilnux-ui" }

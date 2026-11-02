@@ -1,0 +1,12 @@
+[package]
+name = "tuilnux-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+ratatui = "0.30.2"
+tuilnux-config = { path = "../tuilnux-config" }
+tuilnux-i18n = { path = "../tuilnux-i18n" }

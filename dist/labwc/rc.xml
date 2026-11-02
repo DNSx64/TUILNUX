@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<!--
+  labwc-Konfiguration für das TUILNUX-Backend "labwc".
+  Erzeugt aus ~/.config/tuilnux/tuilnux.toml: tsettings schreibt diese Datei
+  nach ~/.config/tuilnux/labwc (hat Vorrang vor der mitgelieferten Fassung);
+  Änderungen von Hand werden beim nächsten Speichern in tsettings überschrieben.
+
+  Das Vollbild-Terminal mit tuilnux (app_id "tuilnux-desktop") ist der Desktop:
+  ohne Rahmen, im Vollbild und immer ganz unten. Grafische Programme (Firefox,
+  Discord, …) öffnen sich darüber als normale Fenster, die man an der
+  Titelleiste verschieben und am Rand in der Größe ändern kann. Den Streifen
+  der Statusleiste hält TUILNUX per Layer-Shell (exklusive Zone) frei.
+-->
+<labwc_config>
+  <core>
+    <decoration>server</decoration>
+    <gap>0</gap>
+    <adaptiveSync>no</adaptiveSync>
+    <allowTearing>no</allowTearing>
+  </core>
+
+  <placement>
+    <policy>cascade</policy>
+  </placement>
+
+  <theme>
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+      <showTitle>yes</showTitle>
+    </titlebar>
+    <cornerRadius>0</cornerRadius>
+    <dropShadows>no</dropShadows>
+    <font>
+      <name>DejaVu Sans Mono</name>
+      <size>10</size>
+      <weight>bold</weight>
+    </font>
+  </theme>
+
+  <desktops number="1" />
+
+  <focus>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <snapping>
+    <range>
+      <inner>10</inner>
+      <outer>10</outer>
+    </range>
+    <topMaximize>yes</topMaximize>
+  </snapping>
+
+  <!--
+    Standard-Tastenkürzel von labwc, u. a.:
+      Alt+Tab   Fenster wechseln (holt auch minimierte zurück)
+      Alt+F4    Fenster schließen
+      Super+A   maximieren
+      Alt+Leertaste  Fenstermenü
+    Dazu von TUILNUX:
+      Super+Unten  minimieren      Super+Oben  maximieren umschalten
+      Super+Umschalt+Links/Rechts  Fenster auf den anderen Bildschirm
+    Strg+Leertaste bleibt frei für den TUILNUX-Manager.
+  -->
+  <keyboard>
+    <numlock>on</numlock>
+    <repeatRate>25</repeatRate>
+    <repeatDelay>600</repeatDelay>
+    <default />
+    <keybind key="W-Down">
+      <action name="Iconify" />
+    </keybind>
+    <keybind key="W-Up">
+      <action name="ToggleMaximize" />
+    </keybind>
+    <keybind key="W-S-Left">
+      <action name="MoveToOutput" direction="left" wrap="yes" />
+    </keybind>
+    <keybind key="W-S-Right">
+      <action name="MoveToOutput" direction="right" wrap="yes" />
+    </keybind>
+  </keyboard>
+
+  <mouse>
+    <doubleClickTime>400</doubleClickTime>
+    <default />
+  </mouse>
+
+  <libinput>
+    <device category="default">
+      <naturalScroll>no</naturalScroll>
+      <leftHanded>no</leftHanded>
+      <pointerSpeed>0.00</pointerSpeed>
+      <accelProfile>adaptive</accelProfile>
+      <tap>yes</tap>
+      <scrollFactor>1.00</scrollFactor>
+    </device>
+  </libinput>
+
+  <windowRules>
+    <windowRule identifier="tuilnux-desktop" serverDecoration="no" skipTaskbar="yes"
+                skipWindowSwitcher="yes" fixedPosition="yes">
+      <action name="ToggleAlwaysOnBottom" />
+    </windowRule>
+  </windowRules>
+</labwc_config>

@@ -1,0 +1,22 @@
+# Build
+/target/
+**/target/
+
+# Arch-Paketbau
+dist/arch/src/
+dist/arch/pkg/
+*.pkg.tar.zst
+*.pkg.tar.xz
+
+# Test-VM und Schlüssel
+testvm/
+vmkey*
+*.vmx
+*.vmdk
+
+# Editor/OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

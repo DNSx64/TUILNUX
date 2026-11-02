@@ -1,0 +1,11 @@
+[package]
+name = "tuilnux-i18n"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Sprachpakete für TUILNUX: Übersetzungen per tr(\"Deutscher Quelltext\")"
+
+[dependencies]
+dirs = "7.0.0"
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.8"

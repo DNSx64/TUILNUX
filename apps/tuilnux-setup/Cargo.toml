@@ -1,0 +1,15 @@
+[package]
+name = "tuilnux-setup"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUILNUX-Ersteinrichtung: grafischer Installer mit Sprache, Tastatur, Bildschirm und Komponenten"
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+image = "0.25.10"
+ratatui = "0.30.2"
+tuilnux-config = { path = "../../crates/tuilnux-config" }
+tuilnux-media = { path = "../../crates/tuilnux-media" }
+tuilnux-ui = { path = "../../crates/tuilnux-ui" }

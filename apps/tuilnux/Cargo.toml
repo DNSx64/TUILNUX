@@ -1,0 +1,25 @@
+[package]
+name = "tuilnux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUILNUX-Sitzung: Vollbild-Terminal als Desktop mit Fenstern, Taskleiste und Taskmanager"
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+qrcode = { version = "0.14.1", default-features = false }
+ratatui = "0.30.2"
+tuilnux-config = { path = "../../crates/tuilnux-config" }
+tuilnux-ipc = { path = "../../crates/tuilnux-ipc" }
+tuilnux-status = { path = "../../crates/tuilnux-status" }
+tuilnux-term = { path = "../../crates/tuilnux-term" }
+tuilnux-ui = { path = "../../crates/tuilnux-ui" }
+tuilnux-window-manager = { path = "../../crates/tuilnux-window-manager" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+wayland-client = "0.31.15"
+wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
+
+[dev-dependencies]
+vt100 = "0.18.1"

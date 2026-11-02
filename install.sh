@@ -1,0 +1,676 @@
+#!/usr/bin/env bash
+# TUILNUX-Installer
+#
+#   bash install.sh              Erstinstallation: grafischer Assistent (tuilnux-setup),
+#                                danach/sonst: bauen, installieren und einrichten
+#   bash install.sh --yes        ohne Rückfragen
+#   bash install.sh --uninstall  alles wieder entfernen und den vorherigen Login herstellen
+#   bash install.sh --help       alle Optionen
+#
+# Als normaler Benutzer ausführen; sudo wird nur für Systemschritte verwendet.
+# Arch Linux: baut ein pacman-Paket (dist/arch/PKGBUILD) und installiert es.
+# Andere Distributionen: baut mit cargo und installiert nach /usr/local.
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+STATE_DIR=/var/lib/tuilnux-installer
+STATE_FILE=$STATE_DIR/state
+GREETD_CONF=/etc/greetd/config.toml
+GREETD_BACKUP=/etc/greetd/config.toml.tuilnux-backup
+MARK_BEGIN='# >>> tuilnux >>>'
+MARK_END='# <<< tuilnux <<<'
+BINS=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia view wallpaper tuilnux-setup)
+MIN_RUST=85
+
+YES=0 DRY=0 UNINSTALL=0 GREETD=1 ENABLE=1 BASHRC=1 TESTS=1 GRAPHICAL=1 MANUAL=0 FONT=1
+TUI=auto
+SYS_LOCALE='' KEYMAP=''
+NVIDIA=auto
+NVIDIA_CONF=/etc/modprobe.d/tuilnux-nvidia.conf
+BACKEND=auto
+CONSOLE_FONT=${TUILNUX_CONSOLE_FONT-}
+VCONSOLE=/etc/vconsole.conf
+VCONSOLE_BACKUP=/etc/vconsole.conf.tuilnux-backup
+CONSOLE_UNICODE=0
+
+usage() {
+    cat <<'EOF'
+TUILNUX-Installer
+
+Aufruf: bash install.sh [Optionen]
+
+  --yes, -y            keine Rückfragen (für Skripte)
+  --tui                grafischen Assistenten (tuilnux-setup) starten
+                       (Standard bei der Erstinstallation auf einem Terminal)
+  --text               ohne Assistent im Textmodus installieren
+  --lang LOCALE        Systemsprache setzen, z. B. de_DE.UTF-8 (locale-gen + localectl)
+  --keymap KEYMAP      Tastaturbelegung der Konsole setzen, z. B. de-latin1
+  --backend B          Sitzungs-Backend: auto (Standard), labwc, cage oder tty
+  --minimal            labwc, foot, Xwayland und wlr-randr nicht installieren (nur Linux-Konsole)
+  --nvidia             NVIDIA-Treiber für Wayland einrichten (nvidia-open-dkms, egl-wayland,
+                       nvidia_drm.modeset=1); Standard: automatisch, wenn eine NVIDIA-Karte steckt
+  --no-nvidia          NVIDIA-Treiber nicht anfassen
+  --no-greetd          keinen Anmeldebildschirm einrichten
+  --no-enable          greetd einrichten, aber nicht beim Booten aktivieren
+  --no-bashrc          ~/.bashrc nicht anpassen
+  --no-font            Konsolenschrift nicht auf Terminus umstellen
+                       (Standard ter-v16n, ab 2560 px Breite ter-v32n;
+                       eigene Wahl per TUILNUX_CONSOLE_FONT=ter-v32n)
+  --no-tests           Tests beim Bauen überspringen
+  --manual             auch auf Arch ohne pacman-Paket nach /usr/local installieren
+  --dry-run            nur anzeigen, was passieren würde
+  --uninstall          TUILNUX entfernen und den vorherigen Login wiederherstellen
+  -h, --help           diese Hilfe
+EOF
+}
+
+while (($#)); do
+    case $1 in
+        -y | --yes) YES=1 ;;
+        --backend)
+            BACKEND=${2-}
+            shift
+            ;;
+        --backend=*) BACKEND=${1#*=} ;;
+        --tui) TUI=1 ;;
+        --text) TUI=0 ;;
+        --lang)
+            SYS_LOCALE=${2-}
+            shift
+            ;;
+        --lang=*) SYS_LOCALE=${1#*=} ;;
+        --keymap)
+            KEYMAP=${2-}
+            shift
+            ;;
+        --keymap=*) KEYMAP=${1#*=} ;;
+        --minimal) GRAPHICAL=0 ;;
+        --nvidia) NVIDIA=1 ;;
+        --no-nvidia) NVIDIA=0 ;;
+        --no-greetd) GREETD=0 ;;
+        --no-enable) ENABLE=0 ;;
+        --no-bashrc) BASHRC=0 ;;
+        --no-font) FONT=0 ;;
+        --no-tests) TESTS=0 ;;
+        --manual) MANUAL=1 ;;
+        --dry-run) DRY=1 ;;
+        --uninstall) UNINSTALL=1 ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unbekannte Option: $1 (siehe --help)" >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+if [[ -t 1 ]]; then
+    C_INFO=$'\033[1;36m' C_WARN=$'\033[1;33m' C_ERR=$'\033[1;31m' C_OFF=$'\033[0m'
+else
+    C_INFO='' C_WARN='' C_ERR='' C_OFF=''
+fi
+# TUILNUX_PROGRESS=1 (Einrichtungsassistent): eigene Schrittmarke, damit die
+# "==>"-Zeilen von makepkg den Fortschrittsbalken nicht verfälschen.
+if [[ ${TUILNUX_PROGRESS:-} == 1 ]]; then
+    say() { printf '##> %s\n' "$*"; }
+else
+    say() { printf '%s==>%s %s\n' "$C_INFO" "$C_OFF" "$*"; }
+fi
+warn() { printf '%s==> Warnung:%s %s\n' "$C_WARN" "$C_OFF" "$*" >&2; }
+die() {
+    printf '%s==> Fehler:%s %s\n' "$C_ERR" "$C_OFF" "$*" >&2
+    exit 1
+}
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Führt einen Befehl aus oder zeigt ihn im Probelauf nur an.
+run() {
+    if ((DRY)); then
+        printf '    $'
+        printf ' %q' "$@"
+        printf '\n'
+    else
+        "$@"
+    fi
+}
+root() { run sudo "$@"; }
+
+# Schreibt stdin als root in eine Datei.
+root_write() {
+    local mode=$1 dest=$2
+    if ((DRY)); then
+        printf '    $ sudo tee %q (Modus %s)\n' "$dest" "$mode"
+        sed 's/^/      | /'
+    else
+        sudo mkdir -p "$(dirname "$dest")"
+        sudo tee "$dest" >/dev/null
+        sudo chmod "$mode" "$dest"
+    fi
+}
+
+ask() {
+    local question=$1 default=$2 answer hint
+    ((YES)) && return 0
+    [[ $default == j ]] && hint='J/n' || hint='j/N'
+    read -r -p "$question [$hint] " answer || answer=
+    answer=${answer:-$default}
+    [[ $answer == [jJyY]* ]]
+}
+
+case $BACKEND in auto | labwc | cage | tty) ;; *) die "--backend muss auto, labwc, cage oder tty sein" ;; esac
+[[ -z $SYS_LOCALE || $SYS_LOCALE =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]] || die "--lang erwartet z. B. de_DE.UTF-8"
+[[ -z $KEYMAP || $KEYMAP =~ ^[A-Za-z0-9_-]+$ ]] || die "--keymap erwartet z. B. de-latin1"
+((GRAPHICAL)) || [[ $NVIDIA != auto ]] || NVIDIA=0
+
+if [[ $(uname -s) != Linux ]]; then
+    ((DRY)) || die "TUILNUX läuft nur unter Linux."
+    warn "Kein Linux – Probelauf zeigt nur die Schritte."
+fi
+if ((EUID == 0)) && ((!DRY)); then
+    die "Bitte als normaler Benutzer starten (nicht mit sudo) – sudo wird bei Bedarf selbst gefragt."
+fi
+
+IS_ARCH=0
+have pacman && have makepkg && IS_ARCH=1
+((MANUAL)) && IS_ARCH=0
+if ((IS_ARCH)); then PREFIX=/usr; else PREFIX=/usr/local; fi
+SHARE=$PREFIX/share/tuilnux
+
+# ---------------------------------------------------------------- Zustand
+
+state_get() {
+    [[ -r $STATE_FILE ]] || return 0
+    sed -n "s/^$1=//p" "$STATE_FILE" | tail -n1
+}
+
+state_set() {
+    local key=$1 value=$2 current=''
+    [[ -r $STATE_FILE ]] && current=$(grep -v "^$key=" "$STATE_FILE" || true)
+    printf '%s\n%s=%s\n' "$current" "$key" "$value" | sed '/^$/d' | root_write 644 "$STATE_FILE"
+}
+
+current_dm() {
+    local link
+    link=$(readlink /etc/systemd/system/display-manager.service 2>/dev/null) || return 0
+    basename "$link" .service
+}
+
+# ---------------------------------------------------------------- Installation
+
+install_packages() {
+    local pkgs=()
+    have cargo || pkgs+=(rust)
+    pacman -Qq base-devel >/dev/null 2>&1 || pkgs+=(base-devel)
+    # pam-u2f/libpam-google-authenticator: Sicherheitsschlüssel und Handy-Code (tlogin setup)
+    ((GREETD)) && pkgs+=(greetd pam-u2f libpam-google-authenticator)
+    ((GRAPHICAL)) && pkgs+=(labwc xorg-xwayland foot ttf-dejavu wlr-randr wl-clipboard)
+    if ((NVIDIA == 1)); then
+        say "NVIDIA-Karte: installiere den offenen Treiber für Wayland"
+        pkgs+=(nvidia-open-dkms nvidia-utils egl-wayland libva-nvidia-driver)
+        local kernel
+        for kernel in linux linux-lts linux-zen linux-hardened; do
+            pacman -Qq "$kernel" >/dev/null 2>&1 && pkgs+=("$kernel-headers")
+        done
+    fi
+    [[ $BACKEND == cage ]] && pkgs+=(cage)
+    ((FONT)) && pkgs+=(terminus-font)
+    if ((${#pkgs[@]})); then
+        say "Installiere Pakete: ${pkgs[*]} (inkl. Systemaktualisierung, Arch erlaubt keine Teil-Upgrades)"
+        root pacman -Syu --needed --noconfirm "${pkgs[@]}"
+    fi
+}
+
+has_nvidia() {
+    local vendor
+    for vendor in /sys/bus/pci/devices/*/vendor; do
+        [[ -r $vendor && $(<"$vendor") == 0x10de ]] || continue
+        # Nur Grafikkarten (Klasse 0x03xxxx), keine NVIDIA-Audio-/USB-Funktionen.
+        [[ $(<"${vendor%/vendor}/class") == 0x03* ]] && return 0
+    done
+    return 1
+}
+
+# NVIDIA unter Wayland braucht Kernel-Modesetting (nvidia_drm.modeset=1).
+configure_nvidia() {
+    ((NVIDIA == 1)) || return 0
+    say "Aktiviere NVIDIA-Modesetting ($NVIDIA_CONF)"
+    root_write 644 "$NVIDIA_CONF" <<'EOF'
+# TUILNUX: NVIDIA unter Wayland (labwc) braucht Kernel-Modesetting.
+options nvidia_drm modeset=1 fbdev=1
+EOF
+    state_set nvidia_conf 1
+    if have mkinitcpio; then
+        root mkinitcpio -P || warn "mkinitcpio -P ist fehlgeschlagen – bitte selbst ausführen."
+    fi
+    echo "    Nach dem Neustart: tsettings → Grafik & NVIDIA zeigt, ob Modesetting aktiv ist."
+}
+
+check_rust() {
+    ((DRY)) && ! have cargo && return 0
+    have cargo || die "cargo fehlt. Arch: sudo pacman -S rust · sonst: https://rustup.rs"
+    local version minor
+    version=$(cd "$ROOT" && rustc --version 2>/dev/null) ||
+        die "rustc läuft nicht. Mit rustup: rustup default stable"
+    minor=$(sed -E 's/^rustc 1\.([0-9]+).*/\1/' <<<"$version")
+    if ! [[ $minor =~ ^[0-9]+$ ]] || ((minor < MIN_RUST)); then
+        die "Rust 1.$MIN_RUST oder neuer nötig (gefunden: $version). Aktualisieren: rustup update / pacman -Syu"
+    fi
+    say "Rust: $version"
+}
+
+install_arch_package() {
+    local work
+    work=$(mktemp -d)
+    # shellcheck disable=SC2064
+    trap "rm -rf '$work'" EXIT
+    local flags=(-s -f -c --noconfirm)
+    ((TESTS)) || flags+=(--nocheck)
+    say "Baue das pacman-Paket (das dauert beim ersten Mal einige Minuten) …"
+    if ((DRY)); then
+        printf '    $ (cd %q && BUILDDIR=… PKGDEST=… makepkg %s)\n' "$ROOT/dist/arch" "${flags[*]}"
+    else
+        (cd "$ROOT/dist/arch" && BUILDDIR="$work/build" PKGDEST="$work/pkg" makepkg "${flags[@]}")
+    fi
+    say "Installiere das Paket"
+    if ((DRY)); then
+        printf '    $ sudo pacman -U --noconfirm %q\n' "$work/pkg/tuilnux-*.pkg.tar.*"
+    else
+        local pkg
+        pkg=$(find "$work/pkg" -name 'tuilnux-*.pkg.tar.*' ! -name '*.sig' | head -n1)
+        [[ -n $pkg ]] || die "makepkg hat kein Paket erzeugt."
+        sudo pacman -U --noconfirm "$pkg"
+    fi
+    state_set method pacman
+}
+
+install_manual() {
+    say "Baue mit cargo …"
+    run cargo build --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
+    if ((TESTS)); then
+        say "Teste …"
+        run cargo test --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
+    fi
+    say "Installiere nach $PREFIX"
+    local files=() bin
+    for bin in "${BINS[@]}"; do
+        root install -Dm755 "$ROOT/target/release/$bin" "$PREFIX/bin/$bin"
+        files+=("$PREFIX/bin/$bin")
+    done
+    root install -Dm755 "$ROOT/dist/tuilnux-session" "$PREFIX/bin/tuilnux-session"
+    root install -Dm644 "$ROOT/dist/bashrc.sh" "$SHARE/bashrc.sh"
+    root install -Dm644 "$ROOT/dist/greetd/config.toml" "$SHARE/greetd/config.toml"
+    root install -Dm644 "$ROOT"/assets/*.ASCIIA "$ROOT"/assets/*.png -t "$SHARE/"
+    root install -Dm644 "$ROOT"/crates/tuilnux-i18n/lang/*.toml -t "$SHARE/lang/"
+    root install -Dm644 "$ROOT"/dist/labwc/* -t "$SHARE/labwc/"
+    files+=("$PREFIX/bin/tuilnux-session" "$SHARE/bashrc.sh" "$SHARE/greetd/config.toml")
+    local asset
+    for asset in "$ROOT"/assets/*.ASCIIA "$ROOT"/assets/*.png; do files+=("$SHARE/$(basename "$asset")"); done
+    for asset in "$ROOT"/crates/tuilnux-i18n/lang/*.toml; do files+=("$SHARE/lang/$(basename "$asset")"); done
+    for asset in "$ROOT"/dist/labwc/*; do files+=("$SHARE/labwc/$(basename "$asset")"); done
+    # Titelknöpfe _ □ x für GTK-Programme (tuilnux-session setzt XDG_CONFIG_DIRS).
+    local gtk
+    for gtk in gtk-3.0 gtk-4.0; do
+        root install -Dm644 "$ROOT/dist/gtk/settings.ini" "$SHARE/xdg/$gtk/settings.ini"
+        files+=("$SHARE/xdg/$gtk/settings.ini")
+    done
+    if [[ ! -e /etc/tuilnux/session.conf ]]; then
+        root install -Dm644 "$ROOT/dist/session.conf" /etc/tuilnux/session.conf
+        files+=(/etc/tuilnux/session.conf)
+    fi
+    printf '%s\n' "${files[@]}" | root_write 644 "$STATE_DIR/manifest"
+    state_set method manual
+}
+
+configure_backend() {
+    [[ $BACKEND == auto ]] && return 0
+    say "Backend: $BACKEND"
+    if ((DRY)); then
+        printf '    $ sudo sed -i s/^TUILNUX_BACKEND=.*/TUILNUX_BACKEND=%s/ /etc/tuilnux/session.conf\n' "$BACKEND"
+    else
+        sudo sed -i "s/^TUILNUX_BACKEND=.*/TUILNUX_BACKEND=$BACKEND/" /etc/tuilnux/session.conf
+    fi
+}
+
+# Terminus kennt alle Rahmenlinien – damit zeichnen tlogin und die tty-Sitzung
+# echte Linien statt ASCII-Ersatz. Nur Glyphenbreiten von 8/16 Pixel: bei 10/12
+# Pixel breiten Schriften (ter-v20n, ter-v24n) mischt fbcon die Textfarben.
+pick_console_font() {
+    [[ -n $CONSOLE_FONT ]] && return 0
+    local width=0
+    [[ -r /sys/class/graphics/fb0/virtual_size ]] && width=$(cut -d, -f1 /sys/class/graphics/fb0/virtual_size)
+    if ((width >= 2560)); then CONSOLE_FONT=ter-v32n; else CONSOLE_FONT=ter-v16n; fi
+}
+
+configure_console_font() {
+    ((FONT)) || return 0
+    pick_console_font
+    if [[ ! -e /usr/share/kbd/consolefonts/$CONSOLE_FONT.psf.gz ]] && ((!DRY)); then
+        warn "Konsolenschrift $CONSOLE_FONT nicht gefunden (Paket terminus-font) – Schrift bleibt unverändert."
+        return 0
+    fi
+    local current=''
+    [[ -r $VCONSOLE ]] && current=$(sed -n 's/^FONT=//p' "$VCONSOLE" | tr -d '"' | tail -1)
+    if [[ $current == ter-v20n ]]; then
+        # Standard älterer TUILNUX-Versionen ersetzen (Farbfehler, siehe oben).
+        say "Konsolenschrift: $current → $CONSOLE_FONT"
+        root sed -i "s/^FONT=.*/FONT=$CONSOLE_FONT/" "$VCONSOLE"
+        root systemctl restart systemd-vconsole-setup.service 2>/dev/null || true
+        state_set console_unicode 1
+        CONSOLE_UNICODE=1
+        return 0
+    fi
+    if [[ $current == ter-* ]]; then
+        say "Konsolenschrift ist bereits Terminus ($current)."
+        state_set console_unicode 1
+        CONSOLE_UNICODE=1
+        return 0
+    fi
+    if [[ -n $current ]]; then
+        warn "Eigene Konsolenschrift ($current) bleibt – Rahmen auf der Konsole als ASCII."
+        return 0
+    fi
+    say "Konsolenschrift: $CONSOLE_FONT ($VCONSOLE)"
+    if [[ -e $VCONSOLE ]]; then
+        [[ -e $VCONSOLE_BACKUP ]] || root cp -a "$VCONSOLE" "$VCONSOLE_BACKUP"
+    else
+        state_set vconsole_created 1
+    fi
+    { [[ -r $VCONSOLE ]] && cat "$VCONSOLE"; echo "FONT=$CONSOLE_FONT"; } | root_write 644 "$VCONSOLE"
+    state_set console_font 1
+    state_set console_unicode 1
+    CONSOLE_UNICODE=1
+    # Sofort auf allen Konsolen anwenden (sonst ab dem nächsten Boot).
+    root systemctl restart systemd-vconsole-setup.service 2>/dev/null || true
+}
+
+configure_greetd() {
+    ((GREETD)) || return 0
+    if [[ ! -d /etc/greetd ]] && ((!DRY)); then
+        warn "greetd ist nicht installiert – Anmeldebildschirm übersprungen."
+        return 0
+    fi
+    if ! getent passwd greeter >/dev/null 2>&1 && ((!DRY)); then
+        warn "Benutzer 'greeter' fehlt (kommt mit dem greetd-Paket) – Anmeldebildschirm übersprungen."
+        return 0
+    fi
+    say "Richte den Anmeldebildschirm ein ($GREETD_CONF)"
+    if [[ -f $GREETD_CONF ]] && ! grep -q tlogin "$GREETD_CONF" && [[ ! -e $GREETD_BACKUP ]]; then
+        root cp -a "$GREETD_CONF" "$GREETD_BACKUP"
+    fi
+    root install -Dm644 "$SHARE/greetd/config.toml" "$GREETD_CONF"
+    if ((CONSOLE_UNICODE)) || [[ $(state_get console_unicode) == 1 ]]; then
+        # Unicode-Konsolenschrift: tlogin (und die Sitzung) zeichnen echte Linien.
+        root sed -i 's/^command = "tlogin /command = "env TUILNUX_ASCII=0 tlogin /' "$GREETD_CONF"
+    fi
+
+    ((ENABLE)) || return 0
+    local dm
+    dm=$(current_dm)
+    if [[ $dm == greetd ]]; then
+        say "greetd ist bereits aktiv."
+        return 0
+    fi
+    if [[ -n $dm ]]; then
+        warn "Aktueller Anmeldemanager: $dm"
+        ask "$dm deaktivieren und TUILNUX (greetd) beim Booten verwenden?" n || {
+            say "greetd bleibt inaktiv. Später: sudo systemctl disable $dm && sudo systemctl enable greetd"
+            return 0
+        }
+        root systemctl disable "$dm.service"
+        state_set previous_dm "$dm"
+    else
+        ask "TUILNUX-Anmeldung beim Booten aktivieren (ersetzt den Text-Login auf TTY1)?" j || {
+            say "greetd bleibt inaktiv. Später: sudo systemctl enable greetd"
+            return 0
+        }
+    fi
+    root systemctl enable greetd.service
+    state_set greetd_enabled 1
+}
+
+configure_locale() {
+    if [[ -n $SYS_LOCALE ]]; then
+        say "Systemsprache: $SYS_LOCALE"
+        if [[ -f /etc/locale.gen ]] && ! grep -q "^$SYS_LOCALE " /etc/locale.gen; then
+            root sed -i "s/^#[[:space:]]*\($SYS_LOCALE \)/\1/" /etc/locale.gen
+            root locale-gen
+        fi
+        if have localectl; then
+            root localectl set-locale "LANG=$SYS_LOCALE"
+        else
+            echo "LANG=$SYS_LOCALE" | root_write 644 /etc/locale.conf
+        fi
+    fi
+    if [[ -n $KEYMAP ]]; then
+        say "Tastaturbelegung (Konsole): $KEYMAP"
+        if have localectl; then
+            root localectl set-keymap --no-convert "$KEYMAP" || warn "Keymap $KEYMAP unbekannt"
+        else
+            warn "localectl fehlt – KEYMAP=$KEYMAP bitte selbst in $VCONSOLE eintragen."
+        fi
+    fi
+}
+
+configure_user() {
+    local conf=${XDG_CONFIG_HOME:-$HOME/.config}/tuilnux
+    say "Benutzerkonfiguration in $conf"
+    run mkdir -p "$conf"
+    local asset name
+    for asset in "$ROOT"/assets/*.ASCIIA; do
+        name=$(basename "$asset")
+        [[ -e $conf/$name ]] || run cp "$asset" "$conf/$name"
+    done
+    if [[ ! -e $conf/tuilnux.toml ]]; then
+        if ((DRY)); then
+            echo "    \$ (schreibe $conf/tuilnux.toml)"
+        else
+            cat >"$conf/tuilnux.toml" <<'EOF'
+# TUILNUX-Sitzung – alle Einträge sind optional.
+# prefix = "ctrl+space"        # Taste für den Manager-Modus (z. B. "ctrl+a", "alt+space", "F12")
+# shell = ["/bin/bash"]        # Desktop-Shell, Standard: $SHELL
+# autostart = ["ttop"]         # beim Start als Fenster öffnen
+EOF
+        fi
+    fi
+
+    ((BASHRC)) || return 0
+    local rc=$HOME/.bashrc
+    if [[ -f $rc ]] && grep -qF "$MARK_BEGIN" "$rc"; then
+        say "$rc enthält die TUILNUX-Integration bereits."
+        return 0
+    fi
+    say "Ergänze ~/.bashrc (Begrüßung per asciia, Aliase open/files/top/edit)"
+    if ((DRY)); then
+        echo "    \$ (hänge TUILNUX-Block an $rc an)"
+        return 0
+    fi
+    [[ -f $rc ]] && cp -a "$rc" "$rc.tuilnux-backup"
+    cat >>"$rc" <<EOF
+
+$MARK_BEGIN
+[ -f $SHARE/bashrc.sh ] && . $SHARE/bashrc.sh
+$MARK_END
+EOF
+}
+
+self_test() {
+    ((DRY)) && return 0
+    say "Selbsttest"
+    local bin missing=0
+    for bin in "${BINS[@]}" tuilnux-session; do
+        if ! have "$bin"; then
+            warn "$bin wurde nicht im PATH gefunden"
+            missing=1
+        fi
+    done
+    tuilnux --version >/dev/null || die "tuilnux startet nicht."
+    asciia --check "$SHARE/welcome.ASCIIA" >/dev/null || warn "welcome.ASCIIA ist ungültig"
+    ((missing)) && warn "Ist $PREFIX/bin im PATH?"
+    return 0
+}
+
+do_install() {
+    say "TUILNUX-Installation ($([[ $IS_ARCH == 1 ]] && echo 'Arch, pacman-Paket' || echo "manuell nach $PREFIX"))"
+    if [[ $NVIDIA == auto ]]; then
+        NVIDIA=0
+        if has_nvidia; then
+            if pacman -Qq 2>/dev/null | grep -qE '^nvidia(-open)?(-dkms)?$' &&
+                [[ -e $NVIDIA_CONF || -n $(grep -rls 'nvidia.drm.modeset=1\|nvidia_drm modeset=1' /etc/modprobe.d /proc/cmdline 2>/dev/null) ]]; then
+                say "NVIDIA-Treiber mit Modesetting ist bereits eingerichtet."
+            elif ask "NVIDIA-Grafikkarte gefunden – Treiber für Wayland einrichten (nvidia-open-dkms, modeset=1)?" j; then
+                NVIDIA=1
+            fi
+        fi
+    fi
+    if ((IS_ARCH)); then
+        install_packages
+    else
+        warn "Kein Arch Linux: Abhängigkeiten bitte selbst installieren (Rust ≥ 1.$MIN_RUST; optional greetd, labwc, foot, Xwayland)."
+    fi
+    check_rust
+    if ((!DRY)); then
+        sudo -v || die "sudo wird für die Installation benötigt."
+        sudo mkdir -p "$STATE_DIR"
+    fi
+    if ((IS_ARCH)); then install_arch_package; else install_manual; fi
+    configure_backend
+    configure_console_font
+    configure_locale
+    configure_nvidia
+    configure_greetd
+    configure_user
+    self_test
+
+    cat <<EOF
+
+${C_INFO}TUILNUX ist installiert.${C_OFF}
+
+  Sofort ausprobieren:   tuilnux-session   (auf einer TTY, z. B. Strg+Alt+F2)
+                         tuilnux           (in einem beliebigen Terminal)
+  Bedienung:             Strg+Leertaste, dann ? für die Hilfe
+  Backend ändern:        /etc/tuilnux/session.conf  (auto | labwc | cage | tty)
+  Entfernen:             bash install.sh --uninstall
+EOF
+    if [[ $(state_get greetd_enabled) == 1 ]]; then
+        echo "  Beim nächsten Neustart erscheint die TUILNUX-Anmeldung (tlogin) auf TTY1."
+        echo "  Notfalls: Strg+Alt+F2, anmelden, bash install.sh --uninstall"
+    fi
+}
+
+# ---------------------------------------------------------------- Deinstallation
+
+do_uninstall() {
+    say "Entferne TUILNUX"
+    ((DRY)) || sudo -v || die "sudo wird benötigt."
+
+    if [[ $(state_get greetd_enabled) == 1 ]]; then
+        root systemctl disable greetd.service || true
+        local dm
+        dm=$(state_get previous_dm)
+        if [[ -n $dm ]]; then
+            say "Aktiviere wieder: $dm"
+            root systemctl enable "$dm.service" || warn "$dm konnte nicht aktiviert werden"
+        fi
+    fi
+    if [[ -e /etc/pam.d/greetd.tuilnux-orig || -e /etc/tuilnux/login.toml ]]; then
+        say "Setze die Anmelde-Sicherheit zurück (PAM, faillock, login.toml)"
+        if have tlogin; then
+            root tlogin setup --reset --yes || warn "tlogin setup --reset fehlgeschlagen"
+        elif [[ -e /etc/pam.d/greetd.tuilnux-orig ]]; then
+            root mv -f /etc/pam.d/greetd.tuilnux-orig /etc/pam.d/greetd
+        fi
+    fi
+    if [[ -e $GREETD_BACKUP ]]; then
+        say "Stelle $GREETD_CONF wieder her"
+        root mv -f "$GREETD_BACKUP" "$GREETD_CONF"
+    elif [[ -f $GREETD_CONF ]] && grep -q tlogin "$GREETD_CONF"; then
+        warn "$GREETD_CONF verweist noch auf tlogin – bitte anpassen, bevor greetd wieder genutzt wird."
+    fi
+
+    if [[ $(state_get console_font) == 1 ]]; then
+        if [[ -e $VCONSOLE_BACKUP ]]; then
+            say "Stelle $VCONSOLE wieder her"
+            root mv -f "$VCONSOLE_BACKUP" "$VCONSOLE"
+        elif [[ $(state_get vconsole_created) == 1 ]]; then
+            root rm -f "$VCONSOLE"
+        fi
+    fi
+
+    if [[ $(state_get nvidia_conf) == 1 ]]; then
+        say "Entferne $NVIDIA_CONF (die NVIDIA-Pakete bleiben installiert)"
+        root rm -f "$NVIDIA_CONF"
+    fi
+
+    local method
+    method=$(state_get method)
+    if [[ $method == pacman ]] || { [[ -z $method ]] && pacman -Qq tuilnux >/dev/null 2>&1; }; then
+        root pacman -R --noconfirm tuilnux
+    elif [[ -r $STATE_DIR/manifest ]]; then
+        local file
+        while IFS= read -r file; do
+            [[ -n $file ]] && root rm -f "$file"
+        done <"$STATE_DIR/manifest"
+        root rmdir --ignore-fail-on-non-empty "$SHARE/greetd" "$SHARE/labwc" "$SHARE/lang" "$SHARE" /etc/tuilnux 2>/dev/null || true
+    else
+        warn "Keine Installation gefunden."
+    fi
+
+    local rc=$HOME/.bashrc
+    if [[ -f $rc ]] && grep -qF "$MARK_BEGIN" "$rc"; then
+        say "Entferne den TUILNUX-Block aus ~/.bashrc"
+        if ((DRY)); then
+            echo "    \$ (entferne Block zwischen den Markierungen)"
+        else
+            cp -a "$rc" "$rc.tuilnux-backup"
+            awk -v b="$MARK_BEGIN" -v e="$MARK_END" '
+                $0 == b { skip = 1; if (n && lines[n] == "") n--; next }
+                $0 == e { skip = 0; next }
+                !skip { lines[++n] = $0 }
+                END { for (i = 1; i <= n; i++) print lines[i] }
+            ' "$rc.tuilnux-backup" >"$rc"
+        fi
+    fi
+
+    root rm -rf "$STATE_DIR"
+    say "Fertig. Deine Einstellungen in ~/.config/tuilnux bleiben erhalten."
+}
+
+# ---------------------------------------------------------------- Assistent
+
+# Erstinstallation auf einem Terminal: Rust bereitstellen, tuilnux-setup bauen
+# und starten. Der Assistent ruft danach `install.sh --text …` mit der Auswahl auf.
+want_wizard() {
+    ((UNINSTALL || DRY)) && return 1
+    [[ $TUI == 0 ]] && return 1
+    [[ -t 0 && -t 1 ]] || return 1
+    [[ $TUI == 1 ]] && return 0
+    ((YES)) && return 1
+    [[ ! -e $STATE_FILE ]]
+}
+
+run_wizard() {
+    say "Starte den grafischen Installationsassistenten (bash install.sh --text überspringt ihn)"
+    sudo -v || die "sudo wird für die Installation benötigt."
+    if ((IS_ARCH)) && { ! have cargo || ! pacman -Qq base-devel >/dev/null 2>&1; }; then
+        say "Installiere Rust und base-devel für den Assistenten"
+        sudo pacman -Syu --needed --noconfirm rust base-devel
+    fi
+    have cargo || die "cargo fehlt. Arch: sudo pacman -S rust · sonst: https://rustup.rs"
+    say "Baue den Assistenten (tuilnux-setup) …"
+    if ! cargo build --release --locked -p tuilnux-setup --manifest-path "$ROOT/Cargo.toml"; then
+        warn "Assistent konnte nicht gebaut werden – weiter im Textmodus."
+        return 1
+    fi
+    exec "$ROOT/target/release/tuilnux-setup" --root "$ROOT"
+}
+
+if ((UNINSTALL)); then
+    do_uninstall
+else
+    if want_wizard; then run_wizard || true; fi
+    do_install
+fi

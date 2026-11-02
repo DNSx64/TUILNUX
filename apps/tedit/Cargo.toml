@@ -1,0 +1,13 @@
+[package]
+name = "tedit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+base64 = "0.23.1"
+crossterm = "0.29.0"
+ratatui = "0.30.2"
+tuilnux-ui = { path = "../../crates/tuilnux-ui" }
+unicode-width = "0.2.3"
