@@ -1,4 +1,4 @@
-# Maintainer: Jonas
+# Maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
 #
 # Baut TUILNUX aus diesem lokalen Quellbaum (kein Download):
 #   cd dist/arch && makepkg -si
@@ -68,4 +68,5 @@ package() {
     install -Dm644 dist/gtk/settings.ini "$pkgdir/usr/share/tuilnux/xdg/gtk-4.0/settings.ini"
     install -Dm644 dist/greetd/config.toml "$pkgdir/usr/share/tuilnux/greetd/config.toml"
     install -Dm644 README.md "$pkgdir/usr/share/doc/tuilnux/README.md"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

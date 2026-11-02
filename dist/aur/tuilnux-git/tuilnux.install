@@ -1,0 +1,17 @@
+post_install() {
+    cat <<'EOF'
+==> TUILNUX ist installiert.
+    Ersteinrichtung (Sprache, Tastatur, Bildschirm):  tuilnux-setup
+    Ausprobieren (in einer TTY oder einem Terminal):  tuilnux
+    Shell-Integration:  echo '[ -f /usr/share/tuilnux/bashrc.sh ] && . /usr/share/tuilnux/bashrc.sh' >> ~/.bashrc
+    Anmeldung beim Booten (greetd):
+        sudo cp /usr/share/tuilnux/greetd/config.toml /etc/greetd/config.toml
+        sudo systemctl enable greetd.service
+    Backend wählen: /etc/tuilnux/session.conf (auto | labwc | cage | tty)
+    Anleitung: /usr/share/doc/tuilnux/ANLEITUNG.md
+EOF
+}
+
+post_upgrade() {
+    :
+}

@@ -1,0 +1,70 @@
+# Maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
+
+pkgname=tuilnux
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps"
+arch=('x86_64' 'aarch64')
+url="https://github.com/DNSx64/TUILNUX"
+license=('MIT')
+depends=('glibc' 'gcc-libs' 'bash')
+makedepends=('cargo')
+optdepends=(
+    'greetd: login via tlogin at boot'
+    'pam-u2f: security keys (FIDO2/U2F) at login'
+    'libpam-google-authenticator: phone codes via QR pairing at login'
+    'labwc: graphical backend with movable windows for GUI programs'
+    'xorg-xwayland: X11 programs in the labwc backend'
+    'foot: terminal for the graphical backends'
+    'wlr-randr: display settings (resolution, refresh rate, scaling, multi-monitor)'
+    'wl-clipboard: paste images from the clipboard into the terminal'
+    'nvidia-utils: NVIDIA graphics under Wayland'
+    'cage: alternative kiosk backend'
+    'gpm: mouse clicks on the plain Linux console'
+    'terminus-font: proper box drawing on the Linux console'
+)
+backup=('etc/tuilnux/session.conf')
+install=tuilnux.install
+options=('!debug')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+_bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia view wallpaper tuilnux-setup)
+
+prepare() {
+    cd "TUILNUX-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "TUILNUX-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release --workspace
+}
+
+check() {
+    cd "TUILNUX-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo test --frozen --release --workspace
+}
+
+package() {
+    cd "TUILNUX-$pkgver"
+    for bin in "${_bins[@]}"; do
+        install -Dm755 "target/release/$bin" "$pkgdir/usr/bin/$bin"
+    done
+    install -Dm755 dist/tuilnux-session "$pkgdir/usr/bin/tuilnux-session"
+    install -Dm644 dist/session.conf "$pkgdir/etc/tuilnux/session.conf"
+    install -Dm644 dist/bashrc.sh "$pkgdir/usr/share/tuilnux/bashrc.sh"
+    install -Dm644 assets/*.ASCIIA assets/*.png -t "$pkgdir/usr/share/tuilnux/"
+    install -Dm644 crates/tuilnux-i18n/lang/*.toml -t "$pkgdir/usr/share/tuilnux/lang/"
+    install -Dm644 dist/labwc/* -t "$pkgdir/usr/share/tuilnux/labwc/"
+    install -Dm644 dist/gtk/settings.ini "$pkgdir/usr/share/tuilnux/xdg/gtk-3.0/settings.ini"
+    install -Dm644 dist/gtk/settings.ini "$pkgdir/usr/share/tuilnux/xdg/gtk-4.0/settings.ini"
+    install -Dm644 dist/greetd/config.toml "$pkgdir/usr/share/tuilnux/greetd/config.toml"
+    install -Dm644 README.md docs/ANLEITUNG.md -t "$pkgdir/usr/share/doc/$pkgname/"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
