@@ -2,13 +2,13 @@
 
 pkgname=tuilnux-git
 _pkgname=tuilnux
-pkgver=0.2.0.r1.g0000000
+pkgver=0.2.0.r0.g7f6b607
 pkgrel=1
 pkgdesc="Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps (git version)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/DNSx64/TUILNUX"
 license=('MIT')
-depends=('glibc' 'gcc-libs' 'bash')
+depends=('glibc' 'libgcc' 'bash')
 makedepends=('cargo' 'git')
 optdepends=(
     'greetd: login via tlogin at boot'

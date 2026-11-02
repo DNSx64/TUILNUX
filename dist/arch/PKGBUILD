@@ -10,7 +10,7 @@ pkgrel=1
 pkgdesc="Terminal-Desktopumgebung: Vollbild-Terminal mit Fenstern, Taskleiste, Taskmanager und TUI-Apps"
 arch=('x86_64' 'aarch64')
 license=('MIT')
-depends=('glibc' 'gcc-libs' 'bash')
+depends=('glibc' 'libgcc' 'bash')
 makedepends=('cargo')
 optdepends=(
     'greetd: Anmeldung über tlogin beim Booten'

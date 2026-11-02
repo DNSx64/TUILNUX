@@ -99,6 +99,14 @@ bash install.sh --dry-run                    # nur anzeigen
 bash install.sh --uninstall                  # alles rückgängig
 ```
 
+Aus dem **AUR** ([tuilnux](https://aur.archlinux.org/packages/tuilnux),
+[tuilnux-git](https://aur.archlinux.org/packages/tuilnux-git)):
+
+```sh
+yay -S tuilnux       # oder: paru -S tuilnux · aktueller main-Stand: tuilnux-git
+tuilnux-setup        # Sprache, Tastatur, Bildschirm einrichten
+```
+
 Fertiges Paket aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
 
 ```sh

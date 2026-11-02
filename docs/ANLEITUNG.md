@@ -11,6 +11,7 @@ Die Kurzfassung steht in der [README](../README.md).
    - [3.1 Grafischer Installer (empfohlen)](#31-grafischer-installer-empfohlen)
    - [3.2 Textmodus / automatisiert](#32-textmodus--automatisiert)
    - [3.3 Fertiges Paket (pacman)](#33-fertiges-paket-pacman)
+   - [3.3a AUR (yay/paru)](#33a-aur-yayparu)
    - [3.4 Andere Distributionen](#34-andere-distributionen)
    - [3.5 Was der Installer verändert](#35-was-der-installer-verändert)
    - [3.6 Deinstallieren](#36-deinstallieren)
@@ -158,6 +159,46 @@ Selbst bauen: `cd dist/arch && makepkg -si`.
 
 Optionale Abhängigkeiten des Pakets: `greetd`, `pam-u2f`, `libpam-google-authenticator`, `labwc`,
 `xorg-xwayland`, `foot`, `wlr-randr`, `wl-clipboard`, `nvidia-utils`, `cage`, `gpm`, `terminus-font`.
+
+### 3.3a AUR (yay/paru)
+
+TUILNUX gibt es im Arch User Repository in zwei Varianten:
+
+| Paket | Inhalt |
+|---|---|
+| [`tuilnux`](https://aur.archlinux.org/packages/tuilnux) | letzte Version (Release-Tag, Prüfsumme) |
+| [`tuilnux-git`](https://aur.archlinux.org/packages/tuilnux-git) | aktueller Stand von `main` |
+
+```sh
+yay -S tuilnux            # oder paru -S tuilnux
+sudo pacman -S --needed greetd labwc foot xorg-xwayland wlr-randr wl-clipboard terminus-font
+tuilnux-setup             # Sprache, Tastatur, Bildschirm
+```
+
+Ohne AUR-Helfer:
+
+```sh
+git clone https://aur.archlinux.org/tuilnux.git
+cd tuilnux && makepkg -si
+```
+
+Wie beim fertigen Paket richtet danach `tuilnux-setup` das System ein. Anmeldung über greetd:
+
+```sh
+sudo cp /usr/share/tuilnux/greetd/config.toml /etc/greetd/config.toml
+sudo systemctl enable greetd.service
+```
+
+**Für Maintainer** – die AUR-Dateien liegen in [`dist/aur/`](../dist/aur):
+
+1. Einmalig: Konto auf <https://aur.archlinux.org/register>, unter „SSH Public Key“ den Inhalt
+   von `~/.ssh/aur.pub` eintragen. In `~/.ssh/config` steht:
+   `Host aur.archlinux.org` / `IdentityFile ~/.ssh/aur` / `User aur`.
+2. Neue Version: `version` in `Cargo.toml` und `pkgver` in `dist/aur/tuilnux/PKGBUILD` erhöhen,
+   `pkgrel=1`, Tag `vX.Y.Z` pushen, in einer Arch-Umgebung `updpkgsums` und
+   `makepkg --printsrcinfo > .SRCINFO` ausführen und mit `makepkg -f` und `namcap` testen.
+3. Hochladen: `pwsh dist/aur/publish.ps1` (beide Pakete) oder `-Packages tuilnux`;
+   `-DryRun` bereitet nur vor.
 
 ### 3.4 Andere Distributionen
 
