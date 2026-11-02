@@ -27,7 +27,7 @@ backup=('etc/tuilnux/session.conf')
 install=tuilnux.install
 options=('!debug')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('06e8f7e78573c22b9d1ff8a2e584bba49b8c9bea67d15e11e9b30bce1ac4d0b9')
+sha256sums=('0edc56b77fcc8c3d33a1a7e1dff1c8e118e163f3b955261bf4ea90b313859623')
 
 _bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia tview wallpaper tuilnux-setup)
 
