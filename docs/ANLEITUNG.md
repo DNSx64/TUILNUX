@@ -11,7 +11,7 @@ Die Kurzfassung steht in der [README](../README.md).
    - [3.1 Grafischer Installer (empfohlen)](#31-grafischer-installer-empfohlen)
    - [3.2 Textmodus / automatisiert](#32-textmodus--automatisiert)
    - [3.3 Fertiges Paket (pacman)](#33-fertiges-paket-pacman)
-   - [3.3a AUR (yay/paru)](#33a-aur-yayparu)
+   - [3.3a pacman-Repository und AUR](#33a-pacman-repository-und-aur)
    - [3.4 Andere Distributionen](#34-andere-distributionen)
    - [3.5 Was der Installer verändert](#35-was-der-installer-verändert)
    - [3.6 Deinstallieren](#36-deinstallieren)
@@ -160,26 +160,34 @@ Selbst bauen: `cd dist/arch && makepkg -si`.
 Optionale Abhängigkeiten des Pakets: `greetd`, `pam-u2f`, `libpam-google-authenticator`, `labwc`,
 `xorg-xwayland`, `foot`, `wlr-randr`, `wl-clipboard`, `nvidia-utils`, `cage`, `gpm`, `terminus-font`.
 
-### 3.3a AUR (yay/paru)
+### 3.3a pacman-Repository und AUR
 
-TUILNUX gibt es im Arch User Repository in zwei Varianten:
+**pacman-Repository** (empfohlen, Updates über `pacman -Syu`): Die Pakete liegen im GitHub-Release
+[`repo`](https://github.com/DNSx64/TUILNUX/releases/tag/repo). In `/etc/pacman.conf` ergänzen:
 
-| Paket | Inhalt |
-|---|---|
-| [`tuilnux`](https://aur.archlinux.org/packages/tuilnux) | letzte Version (Release-Tag, Prüfsumme) |
-| [`tuilnux-git`](https://aur.archlinux.org/packages/tuilnux-git) | aktueller Stand von `main` |
+```ini
+[tuilnux]
+SigLevel = Optional TrustAll
+Server = https://github.com/DNSx64/TUILNUX/releases/download/repo
+```
 
 ```sh
-yay -S tuilnux            # oder paru -S tuilnux
+sudo pacman -Sy tuilnux
 sudo pacman -S --needed greetd labwc foot xorg-xwayland wlr-randr wl-clipboard terminus-font
 tuilnux-setup             # Sprache, Tastatur, Bildschirm
 ```
 
-Ohne AUR-Helfer:
+Die Pakete sind (noch) nicht signiert, daher `SigLevel = Optional TrustAll`. pacman prüft dann
+nur die Prüfsummen aus der Datenbank, die über HTTPS von GitHub kommt.
+
+**AUR**: Die Pakete [`tuilnux`](https://aur.archlinux.org/packages/tuilnux) (letzte Version) und
+[`tuilnux-git`](https://aur.archlinux.org/packages/tuilnux-git) (Stand von `main`) werden
+hochgeladen, sobald die AUR-Registrierung wieder geöffnet ist. Danach genügt `yay -S tuilnux`.
+Bis dahin lassen sie sich direkt aus diesem Repository bauen:
 
 ```sh
-git clone https://aur.archlinux.org/tuilnux.git
-cd tuilnux && makepkg -si
+git clone https://github.com/DNSx64/TUILNUX.git
+cd TUILNUX/dist/aur/tuilnux && makepkg -si     # oder ../tuilnux-git
 ```
 
 Wie beim fertigen Paket richtet danach `tuilnux-setup` das System ein. Anmeldung über greetd:
@@ -199,6 +207,15 @@ sudo systemctl enable greetd.service
    `makepkg --printsrcinfo > .SRCINFO` ausführen und mit `makepkg -f` und `namcap` testen.
 3. Hochladen: `pwsh dist/aur/publish.ps1` (beide Pakete) oder `-Packages tuilnux`;
    `-DryRun` bereitet nur vor.
+4. pacman-Repository aktualisieren (in Arch, im Ordner mit dem neuen Paket):
+
+   ```sh
+   gh release download repo -p 'tuilnux.db.tar.gz' -p 'tuilnux.files.tar.gz' -R DNSx64/TUILNUX
+   repo-add -R tuilnux.db.tar.gz tuilnux-X.Y.Z-1-x86_64.pkg.tar.zst
+   cp -L tuilnux.db.tar.gz tuilnux.db && cp -L tuilnux.files.tar.gz tuilnux.files
+   gh release upload repo --clobber -R DNSx64/TUILNUX tuilnux.db tuilnux.db.tar.gz \
+       tuilnux.files tuilnux.files.tar.gz tuilnux-X.Y.Z-1-x86_64.pkg.tar.zst
+   ```
 
 ### 3.4 Andere Distributionen
 

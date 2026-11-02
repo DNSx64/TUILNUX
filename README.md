@@ -99,12 +99,19 @@ bash install.sh --dry-run                    # nur anzeigen
 bash install.sh --uninstall                  # alles rückgängig
 ```
 
-Aus dem **AUR** ([tuilnux](https://aur.archlinux.org/packages/tuilnux),
-[tuilnux-git](https://aur.archlinux.org/packages/tuilnux-git)):
+Über das **pacman-Repository** (Updates kommen mit `pacman -Syu`):
 
 ```sh
-yay -S tuilnux       # oder: paru -S tuilnux · aktueller main-Stand: tuilnux-git
+printf '\n[tuilnux]\nSigLevel = Optional TrustAll\nServer = https://github.com/DNSx64/TUILNUX/releases/download/repo\n' | sudo tee -a /etc/pacman.conf
+sudo pacman -Sy tuilnux
 tuilnux-setup        # Sprache, Tastatur, Bildschirm einrichten
+```
+
+Als AUR-Paket selbst bauen (der Upload ins AUR folgt, sobald die AUR-Registrierung wieder offen ist):
+
+```sh
+git clone https://github.com/DNSx64/TUILNUX.git
+cd TUILNUX/dist/aur/tuilnux && makepkg -si     # oder ../tuilnux-git für den main-Stand
 ```
 
 Fertiges Paket aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
