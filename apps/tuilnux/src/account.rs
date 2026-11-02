@@ -401,7 +401,10 @@ pub fn key(args: &[String]) -> Result<()> {
             let output = match output {
                 Ok(o) => o,
                 Err(_) => {
-                    bail!("pamu2fcfg fehlt – sudo pacman -S pam-u2f (oder sudo tlogin setup)")
+                    bail!(
+                        "pamu2fcfg fehlt – {} (oder sudo tlogin setup)",
+                        tuilnux_config::install_hint(tuilnux_config::Package::PamU2f)
+                    )
                 }
             };
             if !output.status.success() {

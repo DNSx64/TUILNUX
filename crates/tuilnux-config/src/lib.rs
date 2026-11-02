@@ -79,6 +79,7 @@ macro_rules! choice {
 }
 
 mod display;
+mod distro;
 mod graphics;
 mod login;
 mod shell;
@@ -87,6 +88,7 @@ pub use display::{
     Arrangement, DisplaySettings, ModeInfo, OutputInfo, OutputSettings, Transform, apply_outputs,
     detect_outputs, output_name_ok, parse_mode, parse_wlr_randr, wlr_randr_args,
 };
+pub use distro::{Package, PackageManager, install_hint, pam_module_dirs, share_dirs, share_file};
 pub use graphics::{
     Gpu, GraphicsSettings, Renderer, WaylandSettings, detect_gpus, nvidia_modeset, vendor_name,
 };

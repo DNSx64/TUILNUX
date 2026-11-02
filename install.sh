@@ -8,8 +8,11 @@
 #   bash install.sh --help       alle Optionen
 #
 # Als normaler Benutzer ausführen; sudo wird nur für Systemschritte verwendet.
-# Arch Linux: baut ein pacman-Paket (dist/arch/PKGBUILD) und installiert es.
-# Andere Distributionen: baut mit cargo und installiert nach /usr/local.
+# Arch Linux (und Manjaro, EndeavourOS, CachyOS …): baut ein pacman-Paket
+# (dist/arch/PKGBUILD) und installiert es.
+# Debian/Ubuntu (apt), Fedora (dnf), openSUSE (zypper): installiert die
+# Abhängigkeiten mit der Paketverwaltung, baut mit cargo (Rust >= 1.85) oder lädt
+# die fertigen Programme vom GitHub-Release und installiert nach /usr/local.
 
 set -euo pipefail
 
@@ -20,13 +23,14 @@ GREETD_CONF=/etc/greetd/config.toml
 GREETD_BACKUP=/etc/greetd/config.toml.tuilnux-backup
 MARK_BEGIN='# >>> tuilnux >>>'
 MARK_END='# <<< tuilnux <<<'
-BINS=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia view wallpaper tuilnux-setup)
+BINS=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia tview wallpaper tuilnux-setup)
 MIN_RUST=85
 
 YES=0 DRY=0 UNINSTALL=0 GREETD=1 ENABLE=1 BASHRC=1 TESTS=1 GRAPHICAL=1 MANUAL=0 FONT=1
 TUI=auto
 SYS_LOCALE='' KEYMAP=''
 NVIDIA=auto
+SOURCE=auto
 NVIDIA_CONF=/etc/modprobe.d/tuilnux-nvidia.conf
 BACKEND=auto
 CONSOLE_FONT=${TUILNUX_CONSOLE_FONT-}
@@ -59,6 +63,9 @@ Aufruf: bash install.sh [Optionen]
                        eigene Wahl per TUILNUX_CONSOLE_FONT=ter-v32n)
   --no-tests           Tests beim Bauen überspringen
   --manual             auch auf Arch ohne pacman-Paket nach /usr/local installieren
+  --source             (nicht Arch) immer mit cargo bauen (Rust >= 1.85 nötig)
+  --prebuilt           (nicht Arch) fertige Programme vom GitHub-Release laden
+                       Standard: bauen, wenn ein passendes Rust da ist, sonst laden
   --dry-run            nur anzeigen, was passieren würde
   --uninstall          TUILNUX entfernen und den vorherigen Login wiederherstellen
   -h, --help           diese Hilfe
@@ -94,6 +101,8 @@ while (($#)); do
         --no-font) FONT=0 ;;
         --no-tests) TESTS=0 ;;
         --manual) MANUAL=1 ;;
+        --source) SOURCE=1 ;;
+        --prebuilt) SOURCE=0 ;;
         --dry-run) DRY=1 ;;
         --uninstall) UNINSTALL=1 ;;
         -h | --help)
@@ -180,6 +189,19 @@ have pacman && have makepkg && IS_ARCH=1
 if ((IS_ARCH)); then PREFIX=/usr; else PREFIX=/usr/local; fi
 SHARE=$PREFIX/share/tuilnux
 
+# Paketverwaltung: pacman (Arch-Familie), apt, dnf oder zypper.
+PM=''
+if have pacman; then PM=pacman; fi
+if ((!IS_ARCH)); then
+    if have apt-get; then PM=apt; elif have dnf; then PM=dnf; elif have zypper; then PM=zypper; fi
+fi
+# shellcheck source=/dev/null
+DISTRO=$( (. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-$ID}") || echo Linux)
+VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -n1)
+RELEASE_URL=${TUILNUX_RELEASE_URL:-https://github.com/DNSx64/TUILNUX/releases/download}
+PREBUILT=$ROOT/target/prebuilt
+BIN_SRC=$ROOT/target/release
+
 # ---------------------------------------------------------------- Zustand
 
 state_get() {
@@ -224,6 +246,116 @@ install_packages() {
     fi
 }
 
+# pacman-Name → Paketname der jeweiligen Distribution ('' = gibt es dort nicht).
+pkg_name() {
+    case $PM:$1 in
+        apt:xwayland | zypper:xwayland) echo xwayland ;;
+        dnf:xwayland) echo xorg-x11-server-Xwayland ;;
+        apt:pam-u2f) echo libpam-u2f ;;
+        zypper:pam-u2f) echo pam_u2f ;;
+        apt:libpam-google-authenticator) echo libpam-google-authenticator ;;
+        dnf:libpam-google-authenticator) echo google-authenticator ;;
+        zypper:libpam-google-authenticator) echo google-authenticator-libpam ;;
+        apt:ttf-dejavu) echo fonts-dejavu-core ;;
+        dnf:ttf-dejavu) echo dejavu-sans-mono-fonts ;;
+        zypper:ttf-dejavu) echo dejavu-fonts ;;
+        apt:terminus-font) echo '' ;; # Debian/Ubuntu: Konsolenschrift über console-setup
+        dnf:terminus-font) echo terminus-fonts-console ;;
+        zypper:terminus-font) echo '' ;; # openSUSE: Terminus nur für X11, keine Konsolenschrift
+        apt:base-devel) echo build-essential ;;
+        dnf:base-devel | zypper:base-devel) echo gcc ;;
+        apt:rust) echo cargo ;;
+        dnf:rust | zypper:rust) echo cargo ;;
+        *) echo "$1" ;;
+    esac
+}
+
+pm_install() {
+    case $PM in
+        apt) root env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" ;;
+        dnf) root dnf install -y "$@" ;;
+        zypper) root zypper --non-interactive install "$@" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Installiert alles auf einmal; fehlt ein Paket in den Quellen, einzeln weiter.
+install_packages_other() {
+    if [[ -z $PM ]]; then
+        warn "Keine bekannte Paketverwaltung (apt, dnf, zypper) – Abhängigkeiten bitte selbst installieren: greetd, labwc, foot, Xwayland, wlr-randr."
+        return 0
+    fi
+    local wanted=() pkgs=() p name
+    ((GREETD)) && wanted+=(greetd pam-u2f libpam-google-authenticator)
+    ((GRAPHICAL)) && wanted+=(labwc xwayland foot ttf-dejavu wlr-randr wl-clipboard)
+    [[ $BACKEND == cage ]] && wanted+=(cage)
+    ((FONT)) && wanted+=(terminus-font)
+    if ((SOURCE == 1)); then
+        have cc || wanted+=(base-devel)
+        have cargo || wanted+=(rust)
+    fi
+    ((SOURCE == 0)) && ! have curl && wanted+=(curl)
+    for p in "${wanted[@]}"; do
+        name=$(pkg_name "$p")
+        [[ -n $name ]] && pkgs+=("$name")
+    done
+    ((${#pkgs[@]})) || return 0
+    say "Installiere Pakete mit $PM ($DISTRO): ${pkgs[*]}"
+    [[ $PM == apt ]] && { root apt-get update || warn "apt-get update ist fehlgeschlagen"; }
+    pm_install "${pkgs[@]}" && return 0
+    warn "Nicht alle Pakete auf einmal installierbar – versuche sie einzeln."
+    for p in "${pkgs[@]}"; do
+        pm_install "$p" || warn "Paket $p ist in den Quellen von $DISTRO nicht verfügbar."
+    done
+}
+
+rust_ok() {
+    have cargo || return 1
+    local minor
+    minor=$(cd "$ROOT" && rustc --version 2>/dev/null | sed -E 's/^rustc 1\.([0-9]+).*/\1/')
+    [[ $minor =~ ^[0-9]+$ ]] && ((minor >= MIN_RUST))
+}
+
+# Bauen oder fertige Programme? (nur außerhalb von Arch)
+choose_source() {
+    [[ $SOURCE == auto ]] || return 0
+    if rust_ok; then SOURCE=1; else SOURCE=0; fi
+}
+
+# Lädt die statisch gelinkten Programme (musl) des passenden Releases.
+fetch_prebuilt() {
+    local arch name url
+    arch=$(uname -m)
+    [[ $arch == x86_64 ]] ||
+        die "Fertige Programme gibt es nur für x86_64. Bitte Rust >= 1.$MIN_RUST installieren (https://rustup.rs) und --source verwenden."
+    BIN_SRC=$PREBUILT/usr/bin
+    if [[ -x $BIN_SRC/tuilnux && $("$BIN_SRC/tuilnux" --version 2>/dev/null) == *"$VERSION"* ]]; then
+        say "Fertige Programme $VERSION sind bereits geladen."
+        return 0
+    fi
+    name=tuilnux-$VERSION-x86_64-linux.tar.gz
+    url=$RELEASE_URL/v$VERSION/$name
+    say "Lade fertige Programme: $url"
+    if ((DRY)); then
+        printf '    $ curl -fL %q | tar -xz -C %q\n' "$url" "$PREBUILT"
+        return 0
+    fi
+    have curl || die "curl fehlt – bitte installieren oder Rust >= 1.$MIN_RUST mit --source verwenden."
+    local tmp
+    tmp=$(mktemp -d)
+    curl -fL --retry 3 -o "$tmp/$name" "$url" || die "Download fehlgeschlagen: $url"
+    if curl -fsL -o "$tmp/$name.sha256" "$url.sha256"; then
+        (cd "$tmp" && sha256sum -c "$name.sha256" >/dev/null) || die "Prüfsumme von $name stimmt nicht."
+    else
+        warn "Keine Prüfsumme gefunden ($url.sha256)."
+    fi
+    rm -rf "$PREBUILT"
+    mkdir -p "$PREBUILT"
+    tar -xzf "$tmp/$name" -C "$PREBUILT"
+    rm -rf "$tmp"
+    [[ -x $BIN_SRC/tuilnux ]] || die "Das Archiv enthält kein usr/bin/tuilnux."
+}
+
 has_nvidia() {
     local vendor
     for vendor in /sys/bus/pci/devices/*/vendor; do
@@ -245,19 +377,35 @@ EOF
     state_set nvidia_conf 1
     if have mkinitcpio; then
         root mkinitcpio -P || warn "mkinitcpio -P ist fehlgeschlagen – bitte selbst ausführen."
+    elif have dracut; then
+        root dracut --regenerate-all -f || warn "dracut ist fehlgeschlagen – bitte selbst ausführen."
+    elif have update-initramfs; then
+        root update-initramfs -u -k all || warn "update-initramfs ist fehlgeschlagen – bitte selbst ausführen."
     fi
     echo "    Nach dem Neustart: tsettings → Grafik & NVIDIA zeigt, ob Modesetting aktiv ist."
 }
 
+# Außerhalb von Arch kommt der NVIDIA-Treiber aus den Quellen der Distribution.
+nvidia_hint() {
+    local hint
+    case $PM in
+        apt) hint="Debian: sudo apt install nvidia-driver (non-free) · Ubuntu: sudo ubuntu-drivers install" ;;
+        dnf) hint="Fedora: RPM Fusion aktivieren, dann sudo dnf install akmod-nvidia" ;;
+        zypper) hint="openSUSE: sudo zypper install-new-recommends --repo repo-non-free (oder nvidia-open-driver-G06-signed-kmp-default)" ;;
+        *) hint="über die Paketverwaltung der Distribution" ;;
+    esac
+    have nvidia-smi || warn "NVIDIA-Treiber fehlt noch – $hint"
+}
+
 check_rust() {
     ((DRY)) && ! have cargo && return 0
-    have cargo || die "cargo fehlt. Arch: sudo pacman -S rust · sonst: https://rustup.rs"
+    have cargo || die "cargo fehlt. Arch: sudo pacman -S rust · sonst: https://rustup.rs oder --prebuilt"
     local version minor
     version=$(cd "$ROOT" && rustc --version 2>/dev/null) ||
         die "rustc läuft nicht. Mit rustup: rustup default stable"
     minor=$(sed -E 's/^rustc 1\.([0-9]+).*/\1/' <<<"$version")
     if ! [[ $minor =~ ^[0-9]+$ ]] || ((minor < MIN_RUST)); then
-        die "Rust 1.$MIN_RUST oder neuer nötig (gefunden: $version). Aktualisieren: rustup update / pacman -Syu"
+        die "Rust 1.$MIN_RUST oder neuer nötig (gefunden: $version). Aktualisieren: rustup update / pacman -Syu – oder ohne Rust: bash install.sh --prebuilt"
     fi
     say "Rust: $version"
 }
@@ -288,16 +436,20 @@ install_arch_package() {
 }
 
 install_manual() {
-    say "Baue mit cargo …"
-    run cargo build --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
-    if ((TESTS)); then
-        say "Teste …"
-        run cargo test --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
+    if ((SOURCE == 0)); then
+        fetch_prebuilt
+    else
+        say "Baue mit cargo …"
+        run cargo build --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
+        if ((TESTS)); then
+            say "Teste …"
+            run cargo test --release --locked --workspace --manifest-path "$ROOT/Cargo.toml"
+        fi
     fi
     say "Installiere nach $PREFIX"
     local files=() bin
     for bin in "${BINS[@]}"; do
-        root install -Dm755 "$ROOT/target/release/$bin" "$PREFIX/bin/$bin"
+        root install -Dm755 "$BIN_SRC/$bin" "$PREFIX/bin/$bin"
         files+=("$PREFIX/bin/$bin")
     done
     root install -Dm755 "$ROOT/dist/tuilnux-session" "$PREFIX/bin/tuilnux-session"
@@ -320,6 +472,10 @@ install_manual() {
     if [[ ! -e /etc/tuilnux/session.conf ]]; then
         root install -Dm644 "$ROOT/dist/session.conf" /etc/tuilnux/session.conf
         files+=(/etc/tuilnux/session.conf)
+    fi
+    # Bis 0.2.0 hieß tview „view“ – das kollidierte mit vim.
+    if [[ -r $STATE_DIR/manifest ]] && grep -qx "$PREFIX/bin/view" "$STATE_DIR/manifest"; then
+        root rm -f "$PREFIX/bin/view"
     fi
     printf '%s\n' "${files[@]}" | root_write 644 "$STATE_DIR/manifest"
     state_set method manual
@@ -348,8 +504,18 @@ pick_console_font() {
 configure_console_font() {
     ((FONT)) || return 0
     pick_console_font
-    if [[ ! -e /usr/share/kbd/consolefonts/$CONSOLE_FONT.psf.gz ]] && ((!DRY)); then
-        warn "Konsolenschrift $CONSOLE_FONT nicht gefunden (Paket terminus-font) – Schrift bleibt unverändert."
+    local dir found=0
+    for dir in /usr/share/kbd/consolefonts /usr/lib/kbd/consolefonts; do
+        [[ -e $dir/$CONSOLE_FONT.psf.gz || -e $dir/$CONSOLE_FONT.psf ]] && found=1
+    done
+    if ((!found && !DRY)); then
+        if [[ $PM == apt ]]; then
+            warn "Debian/Ubuntu: Konsolenschrift bleibt (Terminus wählen: sudo dpkg-reconfigure console-setup) – Rahmen auf der Konsole als ASCII."
+        elif [[ $PM == zypper ]]; then
+            warn "openSUSE: keine Terminus-Konsolenschrift verfügbar – Schrift bleibt unverändert, Rahmen auf der Konsole als ASCII."
+        else
+            warn "Konsolenschrift $CONSOLE_FONT nicht gefunden (Paket $(PM=${PM:-pacman} pkg_name terminus-font)) – Schrift bleibt unverändert."
+        fi
         return 0
     fi
     local current=''
@@ -387,21 +553,46 @@ configure_console_font() {
     root systemctl restart systemd-vconsole-setup.service 2>/dev/null || true
 }
 
+# Benutzer, unter dem greetd den Greeter startet: aus der vorhandenen Konfiguration
+# (ohne TUILNUX-Version), sonst der erste vorhandene Systembenutzer.
+greeter_user() {
+    local conf u
+    for conf in "$GREETD_BACKUP" "$GREETD_CONF"; do
+        [[ -r $conf ]] || continue
+        u=$(sed -n 's/^[[:space:]]*user[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$conf" | head -n1)
+        if [[ -n $u ]] && getent passwd "$u" >/dev/null 2>&1; then
+            echo "$u"
+            return 0
+        fi
+    done
+    for u in greeter _greetd greetd; do
+        getent passwd "$u" >/dev/null 2>&1 && { echo "$u"; return 0; }
+    done
+    return 0
+}
+
 configure_greetd() {
     ((GREETD)) || return 0
     if [[ ! -d /etc/greetd ]] && ((!DRY)); then
         warn "greetd ist nicht installiert – Anmeldebildschirm übersprungen."
         return 0
     fi
-    if ! getent passwd greeter >/dev/null 2>&1 && ((!DRY)); then
-        warn "Benutzer 'greeter' fehlt (kommt mit dem greetd-Paket) – Anmeldebildschirm übersprungen."
+    local guser
+    guser=$(greeter_user)
+    if [[ -z $guser ]] && ((!DRY)); then
+        warn "Kein Greeter-Benutzer (greeter/_greetd/greetd) gefunden – Anmeldebildschirm übersprungen."
         return 0
     fi
+    guser=${guser:-greeter}
     say "Richte den Anmeldebildschirm ein ($GREETD_CONF)"
     if [[ -f $GREETD_CONF ]] && ! grep -q tlogin "$GREETD_CONF" && [[ ! -e $GREETD_BACKUP ]]; then
         root cp -a "$GREETD_CONF" "$GREETD_BACKUP"
     fi
     root install -Dm644 "$SHARE/greetd/config.toml" "$GREETD_CONF"
+    if [[ $guser != greeter ]]; then
+        # Debian/Ubuntu: _greetd, Fedora: greetd
+        root sed -i "s/^user = \"greeter\"/user = \"$guser\"/" "$GREETD_CONF"
+    fi
     if ((CONSOLE_UNICODE)) || [[ $(state_get console_unicode) == 1 ]]; then
         # Unicode-Konsolenschrift: tlogin (und die Sitzung) zeichnen echte Linien.
         root sed -i 's/^command = "tlogin /command = "env TUILNUX_ASCII=0 tlogin /' "$GREETD_CONF"
@@ -501,6 +692,8 @@ self_test() {
     ((DRY)) && return 0
     say "Selbsttest"
     local bin missing=0
+    # sudo/secure_path lassen /usr/local/bin mitunter weg – Selbsttest unabhängig davon.
+    [[ :$PATH: == *":$PREFIX/bin:"* ]] || PATH="$PREFIX/bin:$PATH"
     for bin in "${BINS[@]}" tuilnux-session; do
         if ! have "$bin"; then
             warn "$bin wurde nicht im PATH gefunden"
@@ -514,28 +707,39 @@ self_test() {
 }
 
 do_install() {
-    say "TUILNUX-Installation ($([[ $IS_ARCH == 1 ]] && echo 'Arch, pacman-Paket' || echo "manuell nach $PREFIX"))"
+    ((IS_ARCH)) || choose_source
+    local how
+    if ((IS_ARCH)); then
+        how='pacman-Paket'
+    elif ((SOURCE == 1)); then
+        how="mit cargo gebaut nach $PREFIX"
+    else
+        how="fertige Programme nach $PREFIX"
+    fi
+    say "TUILNUX-Installation auf $DISTRO ($how)"
     if [[ $NVIDIA == auto ]]; then
         NVIDIA=0
         if has_nvidia; then
-            if pacman -Qq 2>/dev/null | grep -qE '^nvidia(-open)?(-dkms)?$' &&
-                [[ -e $NVIDIA_CONF || -n $(grep -rls 'nvidia.drm.modeset=1\|nvidia_drm modeset=1' /etc/modprobe.d /proc/cmdline 2>/dev/null) ]]; then
+            if { ! ((IS_ARCH)) || pacman -Qq 2>/dev/null | grep -qE '^nvidia(-open)?(-dkms)?$'; } &&
+                { [[ -e $NVIDIA_CONF ]] || grep -qrs 'nvidia.drm.modeset=1\|nvidia_drm modeset=1' /etc/modprobe.d /proc/cmdline; }; then
                 say "NVIDIA-Treiber mit Modesetting ist bereits eingerichtet."
-            elif ask "NVIDIA-Grafikkarte gefunden – Treiber für Wayland einrichten (nvidia-open-dkms, modeset=1)?" j; then
+            elif ask "NVIDIA-Grafikkarte gefunden – für Wayland einrichten (Treiber, nvidia_drm.modeset=1)?" j; then
                 NVIDIA=1
             fi
         fi
     fi
-    if ((IS_ARCH)); then
-        install_packages
-    else
-        warn "Kein Arch Linux: Abhängigkeiten bitte selbst installieren (Rust ≥ 1.$MIN_RUST; optional greetd, labwc, foot, Xwayland)."
-    fi
-    check_rust
     if ((!DRY)); then
         sudo -v || die "sudo wird für die Installation benötigt."
-        sudo mkdir -p "$STATE_DIR"
     fi
+    if ((IS_ARCH)); then
+        install_packages
+        check_rust
+    else
+        install_packages_other
+        ((SOURCE == 1)) && check_rust
+        ((NVIDIA == 1)) && nvidia_hint
+    fi
+    ((DRY)) || sudo mkdir -p "$STATE_DIR"
     if ((IS_ARCH)); then install_arch_package; else install_manual; fi
     configure_backend
     configure_console_font
@@ -658,6 +862,18 @@ run_wizard() {
     if ((IS_ARCH)) && { ! have cargo || ! pacman -Qq base-devel >/dev/null 2>&1; }; then
         say "Installiere Rust und base-devel für den Assistenten"
         sudo pacman -Syu --needed --noconfirm rust base-devel
+    fi
+    if ((!IS_ARCH)); then
+        choose_source
+        if ((SOURCE == 0)); then
+            if ! have curl; then
+                say "Installiere curl für den Download"
+                [[ $PM == apt ]] && { root apt-get update || true; }
+                pm_install curl || die "curl konnte nicht installiert werden."
+            fi
+            fetch_prebuilt
+            exec "$BIN_SRC/tuilnux-setup" --root "$ROOT"
+        fi
     fi
     have cargo || die "cargo fehlt. Arch: sudo pacman -S rust · sonst: https://rustup.rs"
     say "Baue den Assistenten (tuilnux-setup) …"

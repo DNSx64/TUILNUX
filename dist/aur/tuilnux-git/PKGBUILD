@@ -32,7 +32,7 @@ options=('!debug')
 source=("$_pkgname::git+$url.git")
 sha256sums=('SKIP')
 
-_bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia view wallpaper tuilnux-setup)
+_bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia tview wallpaper tuilnux-setup)
 
 pkgver() {
     cd "$_pkgname"

@@ -29,7 +29,7 @@ options=('!debug')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('6311e6ea61d5d5a23abbbd08f2906eb03afe489dedbf34a408c1bd0d278c5072')
 
-_bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia view wallpaper tuilnux-setup)
+_bins=(tuilnux tterm tlogin tfiles tedit ttop tsettings asciia tview wallpaper tuilnux-setup)
 
 prepare() {
     cd "TUILNUX-$pkgver"

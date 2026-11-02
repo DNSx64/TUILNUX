@@ -10,11 +10,11 @@ use tuilnux_media::{
 };
 
 const HELP: &str = "\
-view – Bilder direkt im Terminal anzeigen
+tview – Bilder direkt im Terminal anzeigen
 
 Verwendung:
-  view <bild>... [--width <spalten>] [--height <zeilen>] [--kitty | --half]
-  view --paste [--no-save]     Bild aus der Zwischenablage einfügen (auch: bild, Alt+V)
+  tview <bild>... [--width <spalten>] [--height <zeilen>] [--kitty | --half]
+  tview --paste [--no-save]     Bild aus der Zwischenablage einfügen (auch: bild, Alt+V)
 
   --paste   kopiertes Bild (z. B. aus Firefox) oder kopierte Bilddatei anzeigen;
             kopierte Bilddaten werden unter ~/Bilder/Eingefügt-DATUM.<format> gespeichert
@@ -44,7 +44,7 @@ fn main() -> ExitCode {
             "--no-save" => save = false,
             "-w" | "--width" | "--height" => {
                 let Some(v) = args.next().and_then(|v| v.parse().ok()).filter(|v| *v > 0) else {
-                    eprintln!("view: {arg} erwartet eine positive Zahl");
+                    eprintln!("tview: {arg} erwartet eine positive Zahl");
                     return ExitCode::from(2);
                 };
                 if arg == "--height" {
@@ -54,7 +54,7 @@ fn main() -> ExitCode {
                 }
             }
             s if s.starts_with('-') => {
-                eprintln!("view: unbekannte Option `{s}` (siehe --help)");
+                eprintln!("tview: unbekannte Option `{s}` (siehe --help)");
                 return ExitCode::from(2);
             }
             s if s.starts_with("file://") => files.extend(paths_from_text(s)),
@@ -70,7 +70,7 @@ fn main() -> ExitCode {
         match from_clipboard(save) {
             Ok(found) => images.extend(found),
             Err(e) => {
-                eprintln!("view: {e:#}");
+                eprintln!("tview: {e:#}");
                 return ExitCode::FAILURE;
             }
         }
@@ -92,7 +92,7 @@ fn main() -> ExitCode {
         let img = match img {
             Ok(img) => img,
             Err(e) => {
-                eprintln!("view: {e:#}");
+                eprintln!("tview: {e:#}");
                 failed = true;
                 continue;
             }
@@ -108,7 +108,7 @@ fn main() -> ExitCode {
                 .map_err(Into::into),
         };
         if let Err(e) = result {
-            eprintln!("view: {e:#}");
+            eprintln!("tview: {e:#}");
             failed = true;
         }
         if many || paste {
@@ -146,7 +146,7 @@ fn wl_paste(args: &[&str]) -> Result<Vec<u8>> {
 fn from_clipboard(save: bool) -> Result<Vec<(String, Result<DynamicImage>)>> {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         bail!(
-            "keine Zwischenablage: Einfügen braucht die grafische Sitzung (labwc). Auf der Konsole: view <datei>"
+            "keine Zwischenablage: Einfügen braucht die grafische Sitzung (labwc). Auf der Konsole: tview <datei>"
         );
     }
     let types = String::from_utf8_lossy(&wl_paste(&["--list-types"])?).into_owned();

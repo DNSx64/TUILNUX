@@ -945,7 +945,7 @@ impl Setup {
                 row("Backend", tr(BACKENDS[self.backend].1).into()),
                 row("Quelle", root.display().to_string()),
                 Line::default(),
-                text(tr("Enter startet die Installation. Pakete werden mit pacman installiert (inkl. Systemaktualisierung).")),
+                text(tr("Enter startet die Installation. Pakete kommen aus der Paketverwaltung der Distribution (pacman, apt, dnf oder zypper).")),
             ]);
         } else {
             lines.extend([

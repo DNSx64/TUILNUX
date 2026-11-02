@@ -6,7 +6,9 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use tuilnux_config::{FactorMode, LoginSettings, faillock_conf, pam_greetd};
+use tuilnux_config::{
+    FactorMode, LoginSettings, Package, PackageManager, faillock_conf, pam_greetd, pam_module_dirs,
+};
 
 pub const PAM_FILE: &str = "/etc/pam.d/greetd";
 pub const FAILLOCK_FILE: &str = "/etc/security/faillock.conf";
@@ -14,7 +16,6 @@ pub const BACKUP_SUFFIX: &str = ".tuilnux-orig";
 /// Beschreibbar für den Greeter (letzter Benutzername).
 pub const STATE_DIR: &str = "/var/lib/tuilnux/greeter";
 pub const LAST_USER_FILE: &str = "last-user";
-const PAM_DIRS: [&str; 2] = ["/usr/lib/security", "/lib/security"];
 
 pub const HELP: &str = "\
 tlogin setup – Anmelde-Einstellungen systemweit übernehmen (als root)
@@ -112,34 +113,42 @@ impl Root {
     }
 }
 
-/// Benötigte PAM-Module mit ihrem Arch-Paket.
-fn modules(s: &LoginSettings) -> Vec<(&'static str, &'static str)> {
+/// Benötigte PAM-Module mit ihrem Paket.
+fn modules(s: &LoginSettings) -> Vec<(&'static str, Package)> {
     let mut v = Vec::new();
     if s.key.enabled() {
-        v.push(("pam_u2f.so", "pam-u2f"));
+        v.push(("pam_u2f.so", Package::PamU2f));
     }
     if s.otp.enabled() {
-        v.push(("pam_google_authenticator.so", "libpam-google-authenticator"));
+        v.push(("pam_google_authenticator.so", Package::GoogleAuthenticator));
     }
     v
 }
 
 fn module_exists(root: &Root, module: &str) -> bool {
-    PAM_DIRS.iter().any(|d| root.path(d).join(module).is_file())
+    pam_module_dirs(&root.0)
+        .iter()
+        .any(|d| d.join(module).is_file())
+}
+
+fn package_manager(root: &Root) -> PackageManager {
+    PackageManager::detect_in(&root.0).unwrap_or(PackageManager::Pacman)
 }
 
 fn install_missing(root: &Root, s: &LoginSettings, yes: bool) -> Result<()> {
+    let pm = package_manager(root);
     let missing: Vec<&str> = modules(s)
         .into_iter()
         .filter(|(m, _)| !module_exists(root, m))
-        .map(|(_, p)| p)
+        .map(|(_, p)| pm.package(p))
         .collect();
     if missing.is_empty() {
         return Ok(());
     }
+    let tool = pm.binary();
     println!("Fehlende Pakete: {}", missing.join(" "));
     if !yes {
-        print!("Jetzt mit pacman installieren? [J/n] ");
+        print!("Jetzt mit {tool} installieren? [J/n] ");
         std::io::stdout().flush()?;
         let mut answer = String::new();
         std::io::stdin().lock().read_line(&mut answer)?;
@@ -147,13 +156,13 @@ fn install_missing(root: &Root, s: &LoginSettings, yes: bool) -> Result<()> {
             bail!("abgebrochen – PAM bleibt unverändert");
         }
     }
-    let status = std::process::Command::new("pacman")
-        .args(["-S", "--needed", "--noconfirm"])
+    let status = std::process::Command::new(tool)
+        .args(pm.install_args())
         .args(&missing)
         .status()
-        .context("pacman nicht gefunden")?;
+        .with_context(|| format!("{tool} nicht gefunden"))?;
     if !status.success() {
-        bail!("pacman ist fehlgeschlagen – PAM bleibt unverändert");
+        bail!("{tool} ist fehlgeschlagen – PAM bleibt unverändert");
     }
     Ok(())
 }
@@ -162,9 +171,13 @@ fn install_missing(root: &Root, s: &LoginSettings, yes: bool) -> Result<()> {
 pub fn apply(root: &Root, s: &LoginSettings, dry_run: bool) -> Result<Vec<String>> {
     s.validate()?;
     // Ein fehlendes Modul mit „required“ würde jede Anmeldung verhindern.
+    let pm = package_manager(root);
     for (module, package) in modules(s) {
         if !module_exists(root, module) {
-            bail!("{module} fehlt (Paket {package}) – PAM bleibt unverändert");
+            bail!(
+                "{module} fehlt ({}) – PAM bleibt unverändert",
+                pm.hint(package)
+            );
         }
     }
     let mut notes = Vec::new();

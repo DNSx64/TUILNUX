@@ -1,6 +1,6 @@
 # TUILNUX – Anleitung
 
-Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.0 Schritt für Schritt.
+Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.1 Schritt für Schritt.
 Die Kurzfassung steht in der [README](../README.md).
 
 **Inhalt**
@@ -53,12 +53,12 @@ Bausteine:
 | `tuilnux-setup` | Grafischer Installer / Ersteinrichtung |
 | `tsettings` | Einstellungen |
 | `tfiles`, `tedit`, `ttop` | Dateibrowser, Editor, Systemmonitor |
-| `view`, `wallpaper`, `asciia` | Bilder anzeigen/einfügen, Hintergrundbild, Animationen |
+| `tview`, `wallpaper`, `asciia` | Bilder anzeigen/einfügen, Hintergrundbild, Animationen |
 | `tterm` | Schlankes Einzel-Terminal mit Statusleiste |
 
 ## 2. Voraussetzungen
 
-- **Arch Linux** (empfohlen; andere Distributionen siehe [3.4](#34-andere-distributionen)), x86_64 oder aarch64
+- **Arch Linux** (x86_64, aarch64) oder **Debian 13 / Ubuntu 24.04+ / Fedora 41+ / openSUSE Tumbleweed** (x86_64), siehe [3.4](#34-andere-distributionen)
 - Ein Benutzer mit `sudo`-Rechten
 - Internetzugang für Pakete und Rust-Abhängigkeiten
 - Für das grafische Backend: eine Grafikkarte mit KMS-Treiber (Intel, AMD, NVIDIA mit
@@ -138,6 +138,8 @@ bash install.sh --dry-run                   # nur anzeigen, was passieren würde
 | `--no-font` | Konsolenschrift nicht auf Terminus umstellen |
 | `--no-tests` | Tests beim Bauen überspringen |
 | `--manual` | auch auf Arch ohne pacman-Paket nach `/usr/local` installieren |
+| `--prebuilt` | (außer Arch) fertige statische Programme aus dem Release nehmen |
+| `--source` | (außer Arch) selbst mit cargo bauen |
 | `--dry-run` | nur anzeigen |
 | `--uninstall` | entfernen und vorherigen Login wiederherstellen |
 
@@ -149,7 +151,7 @@ Umgebungsvariablen: `TUILNUX_CONSOLE_FONT=ter-v32n` (eigene Konsolenschrift), `T
 Jedes [Release](https://github.com/DNSx64/TUILNUX/releases) enthält ein fertiges Arch-Paket:
 
 ```sh
-sudo pacman -U tuilnux-0.2.0-1-x86_64.pkg.tar.zst
+sudo pacman -U tuilnux-0.2.1-1-x86_64.pkg.tar.zst
 sudo pacman -S --needed greetd labwc foot xorg-xwayland wlr-randr wl-clipboard terminus-font
 ```
 
@@ -219,8 +221,55 @@ sudo systemctl enable greetd.service
 
 ### 3.4 Andere Distributionen
 
-Ohne pacman baut `install.sh` mit cargo und installiert nach `/usr/local`. Abhängigkeiten selbst
-installieren: Rust ≥ 1.85, optional greetd, labwc, foot, Xwayland, wlr-randr, wl-clipboard.
+TUILNUX läuft auch auf Debian, Ubuntu (und Mint), Fedora und openSUSE. Die Programme werden dafür
+**statisch** (musl) gebaut und brauchen keine Bibliotheken der Distribution. Getestet mit
+Debian 13, Ubuntu 24.04, Fedora 44 und openSUSE Tumbleweed.
+
+**Paketquellen** (auf GitHub Pages, Updates über den normalen Paketmanager):
+
+```sh
+# Debian / Ubuntu / Mint
+echo 'deb [trusted=yes] https://dnsx64.github.io/TUILNUX/apt ./' | sudo tee /etc/apt/sources.list.d/tuilnux.list
+sudo apt update && sudo apt install tuilnux
+
+# Fedora
+sudo curl -fsSLo /etc/yum.repos.d/tuilnux.repo https://dnsx64.github.io/TUILNUX/rpm/tuilnux.repo
+sudo dnf install tuilnux
+
+# openSUSE
+sudo zypper ar -G -f https://dnsx64.github.io/TUILNUX/rpm tuilnux
+sudo zypper in tuilnux
+```
+
+Die Pakete sind (noch) nicht signiert (`trusted=yes`, `gpgcheck=0`); sie kommen über HTTPS von
+GitHub. labwc, foot, greetd, Xwayland und wlr-randr werden als empfohlene Pakete mitinstalliert.
+Danach `tuilnux-setup` starten; das Paket zeigt außerdem an, wie greetd + tlogin aktiviert wird.
+
+**Einzelne Pakete** aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
+`sudo apt install ./tuilnux_0.2.1-1_amd64.deb` bzw. `sudo dnf install ./tuilnux-0.2.1-1.x86_64.rpm`.
+Für jede andere x86_64-Distribution gibt es `tuilnux-0.2.1-x86_64-linux.tar.gz` (Aufbau wie `/usr`,
+mit `sudo tar -xzf … -C /` entpacken).
+
+**install.sh** funktioniert überall: Es erkennt apt, dnf und zypper, installiert die passenden
+Pakete (Namen werden übersetzt, z. B. `libpam-u2f`, `xorg-x11-server-Xwayland`), lädt die fertigen
+Programme aus dem Release nach `/usr/local` (oder baut mit `--source`, wenn Rust ≥ 1.85 vorhanden
+ist), richtet greetd mit dem Greeter-Benutzer der Distribution ein (`greeter`, `_greetd` bzw.
+`greetd`) und lässt sich mit `--uninstall` vollständig rückgängig machen.
+
+| | Arch | Debian/Ubuntu | Fedora | openSUSE |
+|---|---|---|---|---|
+| Paketquelle | pacman-Repo | apt | dnf | zypper |
+| Programme in | `/usr` | `/usr` (Paket) bzw. `/usr/local` (install.sh) | wie Debian | wie Debian |
+| Greeter-Benutzer | `greeter` | `_greetd` | `greetd` | `greeter` |
+| Terminus-Konsolenschrift | `terminus-font` | über `sudo dpkg-reconfigure console-setup` | `terminus-fonts-console` | nicht verfügbar (ASCII-Rahmen) |
+| PAM für Schlüssel/QR | `pam-u2f`, `libpam-google-authenticator` | `libpam-u2f`, `libpam-google-authenticator` | `pam-u2f`, `google-authenticator` | `pam_u2f`, `google-authenticator-libpam` |
+
+`tlogin setup` installiert fehlende PAM-Module automatisch mit dem Paketmanager der Distribution
+und berücksichtigt `@include common-auth` (Debian/Ubuntu).
+
+**Für Maintainer:** `bash dist/pkg/build.sh` baut `.deb`, `.rpm` und Tarball (nach
+`target/packages/`, benötigt das Rust-Target `x86_64-unknown-linux-musl`), `bash dist/pkg/repo.sh`
+erzeugt daraus die Paketquellen in `target/pages/` für den Branch `gh-pages`.
 
 ### 3.5 Was der Installer verändert
 
@@ -363,12 +412,12 @@ ohne Endung oder ein falsch benanntes `bild.txt`.
 
 | Eingabe | Wirkung |
 |---|---|
-| `bild foto` | Datei anzeigen (Kurzform für `view foto`) |
+| `bild foto` | Datei anzeigen (Kurzform für `tview foto`) |
 | `bild` | Bild aus der Zwischenablage einfügen, anzeigen und speichern |
 | `Alt+V` | dasselbe als Tastenkürzel in der Shell |
-| `einfuegen` | Alias für `view --paste` |
-| `view --width 60 foto` | mit fester Breite |
-| `view --half` / `--kitty` | Darstellung erzwingen |
+| `einfuegen` | Alias für `tview --paste` |
+| `tview --width 60 foto` | mit fester Breite |
+| `tview --half` / `--kitty` | Darstellung erzwingen |
 
 **Einfügen**: Kopiere ein Bild (z. B. in Firefox „Grafik kopieren“, Screenshot-Werkzeug) oder eine
 Bilddatei (im Dateimanager kopieren, Pfad oder `file://`-URI). `bild` bzw. `Alt+V` holt es über
@@ -583,7 +632,7 @@ Protokoll: `~/.local/state/tuilnux/compositor.log`.
 | `tuilnux-setup [--root ORDNER]` | Installer / Ersteinrichtung |
 | `tsettings [bereich]` | Einstellungen |
 | `tfiles [ordner]` · `tedit [datei]` · `ttop` | Dateien · Editor · Systemmonitor |
-| `bild [datei]` · `view <bild> [--paste] [--kitty\|--half] [--width N]` | Bild anzeigen / einfügen |
+| `bild [datei]` · `tview <bild> [--paste] [--kitty\|--half] [--width N]` | Bild anzeigen / einfügen |
 | `wallpaper set <bild> [--dim 0.55] [--fill\|--fit\|--center]` · `wallpaper off\|show` | Hintergrundbild |
 | `asciia <datei> [--once\|--loop] [--speed 1.5]` · `asciia --check <datei>` | Animation abspielen / prüfen |
 | `tterm [-- befehl]` | Einzel-Terminal mit Statusleiste |
@@ -667,7 +716,7 @@ Workspace-Aufbau:
 | `crates/tuilnux-i18n` | Sprachpakete (`tr()`), eingebaut `en`, `fr`, `es` |
 | `crates/tuilnux-config` | Einstellungsmodell und Erzeugung der labwc-/GTK-/Sitzungsdateien, Bildschirm-Modi |
 | `crates/tuilnux-asciia` | ASCIIA-Parser, Player und CLI `asciia` |
-| `crates/tuilnux-media` | Bilder im Terminal (Kitty / Halbblock), Formaterkennung, `view`, `wallpaper` |
+| `crates/tuilnux-media` | Bilder im Terminal (Kitty / Halbblock), Formaterkennung, `tview`, `wallpaper` |
 | `crates/tuilnux-term` | Terminal-Emulation (PTY + VT-Zustand) |
 | `crates/tuilnux-status` | Statusleiste und Prozesswerte |
 | `crates/tuilnux-window-manager` | Fensterlogik: Fokus, Z-Reihenfolge, Ziehen, Größe, Minimieren |

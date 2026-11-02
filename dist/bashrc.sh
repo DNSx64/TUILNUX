@@ -53,12 +53,12 @@ fi
 
 # Bilder im Terminal: "bild DATEI" zeigt eine Datei (Endung egal),
 # "bild" ohne Argument bzw. Alt+V fügt ein kopiertes Bild oder eine kopierte Bilddatei ein.
-if command -v view >/dev/null; then
+if command -v tview >/dev/null; then
     bild() {
-        if (($#)); then view "$@"; else view --paste; fi
+        if (($#)); then tview "$@"; else tview --paste; fi
     }
-    alias einfuegen='view --paste'
-    bind -x '"\ev": view --paste' 2>/dev/null
+    alias einfuegen='tview --paste'
+    bind -x '"\ev": tview --paste' 2>/dev/null
 fi
 
 : "${EDITOR:=tedit}"

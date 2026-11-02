@@ -4,13 +4,14 @@
 
 <p align="center">
   <b>Dein System. Dein eigener Flow.</b><br>
-  Eine Desktop-Umgebung für Arch Linux, die aus einem einzigen Vollbild-Terminal besteht.
+  Eine Desktop-Umgebung für Linux (Arch, Debian, Ubuntu, Fedora, openSUSE …), die aus einem einzigen Vollbild-Terminal besteht.
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-5fd7af">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.1-5fd7af">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.85%2B-orange">
   <img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-x86__64%20%7C%20aarch64-1793d1">
+  <img alt="Distros" src="https://img.shields.io/badge/Debian%20%7C%20Ubuntu%20%7C%20Fedora%20%7C%20openSUSE-.deb%20%7C%20.rpm-a8a8ff">
   <img alt="Wayland" src="https://img.shields.io/badge/Wayland-labwc-87afff">
   <img alt="Lizenz" src="https://img.shields.io/badge/Lizenz-MIT-green">
 </p>
@@ -42,6 +43,11 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 - ⏯️ GUI-Programme starten im Hintergrund – `tab --shell firefox` zeigt ihre Ausgabe
 - 🖥️🖥️ **Multimonitor**: Anordnung, Desktop-Monitor, Fenster zwischen Monitoren verschieben
 
+**Neu in 0.2.1**
+- 🐧 **Andere Distributionen**: Debian, Ubuntu, Fedora, openSUSE – `.deb`/`.rpm`-Pakete, apt/rpm-Paketquellen, `install.sh` erkennt apt, dnf und zypper
+- 📦 Statische Programme (musl) – laufen auf jeder x86_64-Distribution, auch ohne Rust
+- ✏️ Der Bildbetrachter heißt jetzt `tview` (vorher `view`, kollidierte mit vim)
+
 **Neu in 0.2.0**
 - 🧙 **Grafischer Installer** (`tuilnux-setup`) mit Logo: Sprache, Tastatur, Bildschirm, Komponenten, Fortschrittsbalken
 - 🖼️ **Bilder im Terminal** – Endung egal (PNG, JPEG, GIF, WebP, BMP, TIFF … am Inhalt erkannt); `bild` oder `Alt+V` fügt ein kopiertes Bild ein
@@ -58,7 +64,7 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 - 🐚 Die komplette `.bashrc` und das PS1 einstellbar – mit Live-Vorschau
 - 🟩 **NVIDIA**-Unterstützung unter Wayland (Treiber, Modesetting, GBM, VA-API)
 
-**Apps**: `tfiles` (Dateien), `tedit` (Editor), `ttop` (Systemmonitor), `view`/`bild` (Bilder),
+**Apps**: `tfiles` (Dateien), `tedit` (Editor), `ttop` (Systemmonitor), `tview`/`bild` (Bilder),
 `wallpaper`, `asciia` (Terminal-Animationen), `tterm`.
 
 ## Screenshots
@@ -78,6 +84,16 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 | ![Firefox](docs/screenshots/firefox.png) | ![ttop](docs/screenshots/ttop.png) |
 
 ## Installation
+
+| Distribution | Weg |
+|---|---|
+| **Arch Linux**, EndeavourOS, Manjaro | `bash install.sh` oder pacman-Repository / AUR-PKGBUILD |
+| **Debian 13**, **Ubuntu 24.04+**, Mint | apt-Paketquelle oder `.deb` |
+| **Fedora 41+** | dnf-Paketquelle oder `.rpm` |
+| **openSUSE** Tumbleweed | zypper-Paketquelle oder `.rpm` |
+| andere (x86_64) | `bash install.sh --prebuilt` oder Tarball aus den Releases |
+
+### Arch Linux
 
 Auf einem frischen **Arch Linux** als normaler Benutzer mit sudo-Rechten:
 
@@ -114,11 +130,56 @@ git clone https://github.com/DNSx64/TUILNUX.git
 cd TUILNUX/dist/aur/tuilnux && makepkg -si     # oder ../tuilnux-git für den main-Stand
 ```
 
-Fertiges Paket aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
+### Debian / Ubuntu / Mint
 
 ```sh
-sudo pacman -U tuilnux-0.2.0-1-x86_64.pkg.tar.zst
+echo 'deb [trusted=yes] https://dnsx64.github.io/TUILNUX/apt ./' | sudo tee /etc/apt/sources.list.d/tuilnux.list
+sudo apt update && sudo apt install tuilnux
 tuilnux-setup        # Sprache, Tastatur, Bildschirm einrichten
+```
+
+labwc, foot, greetd, Xwayland und wlr-randr kommen als empfohlene Pakete automatisch mit.
+
+### Fedora
+
+```sh
+sudo curl -fsSLo /etc/yum.repos.d/tuilnux.repo https://dnsx64.github.io/TUILNUX/rpm/tuilnux.repo
+sudo dnf install tuilnux
+tuilnux-setup
+```
+
+### openSUSE
+
+```sh
+sudo zypper ar -G -f https://dnsx64.github.io/TUILNUX/rpm tuilnux
+sudo zypper in tuilnux labwc foot greetd wlr-randr xwayland
+tuilnux-setup
+```
+
+### Mit dem Installationsskript (alle Distributionen)
+
+`install.sh` erkennt pacman, apt, dnf und zypper, installiert die Abhängigkeiten, richtet
+greetd + tlogin, Schrift und `.bashrc` ein und kann alles wieder entfernen. Außerhalb von Arch
+nimmt es die fertigen statischen Programme aus den Releases (nach `/usr/local`) – oder baut
+mit `--source` selbst, wenn Rust ≥ 1.85 vorhanden ist.
+
+```sh
+git clone https://github.com/DNSx64/TUILNUX.git && cd TUILNUX
+bash install.sh              # Assistent; --text ohne Assistent
+bash install.sh --prebuilt   # immer fertige Programme
+bash install.sh --source     # immer selbst bauen (cargo)
+```
+
+### Fertige Pakete
+
+In den [Releases](https://github.com/DNSx64/TUILNUX/releases): `tuilnux-0.2.1-1-x86_64.pkg.tar.zst`
+(Arch), `tuilnux_0.2.1-1_amd64.deb`, `tuilnux-0.2.1-1.x86_64.rpm` und
+`tuilnux-0.2.1-x86_64-linux.tar.gz` (statisch, für jede Distribution: nach `/` entpacken).
+
+```sh
+sudo pacman -U tuilnux-0.2.1-1-x86_64.pkg.tar.zst      # Arch
+sudo apt install ./tuilnux_0.2.1-1_amd64.deb           # Debian/Ubuntu
+sudo dnf install ./tuilnux-0.2.1-1.x86_64.rpm          # Fedora
 ```
 
 ➡️ Alle Optionen, Bedienung, Sprachpakete, Bildschirme, sichere Anmeldung und Fehlerbehebung:

@@ -311,7 +311,12 @@ pub fn detect_outputs() -> Result<Vec<OutputInfo>> {
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .output()
-        .context("wlr-randr fehlt (sudo pacman -S wlr-randr)")?;
+        .with_context(|| {
+            format!(
+                "wlr-randr fehlt ({})",
+                crate::install_hint(crate::Package::WlrRandr)
+            )
+        })?;
     if !out.status.success() {
         bail!("wlr-randr: {}", String::from_utf8_lossy(&out.stderr).trim());
     }

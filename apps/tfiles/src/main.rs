@@ -256,7 +256,7 @@ impl Files {
         let ext = ext_of(&entry.path);
         let path = entry.path.as_os_str();
         if IMAGE_EXT.contains(&ext.as_str()) {
-            Self::run_tool(terminal, "view", &[path])?;
+            Self::run_tool(terminal, "tview", &[path])?;
         } else if ext == "asciia" {
             Self::run_tool(terminal, "asciia", &[path, "--once".as_ref()])?;
         } else if is_text_file(&entry.path) {

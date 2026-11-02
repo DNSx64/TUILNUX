@@ -60,6 +60,7 @@ pub fn pack_dirs() -> Vec<PathBuf> {
         dirs.push(PathBuf::from(d));
     }
     dirs.push(PathBuf::from("/usr/share/tuilnux/lang"));
+    dirs.push(PathBuf::from("/usr/local/share/tuilnux/lang"));
     dirs.push(PathBuf::from("/etc/tuilnux/lang"));
     if let Some(c) = dirs::config_dir() {
         dirs.push(c.join("tuilnux/lang"));

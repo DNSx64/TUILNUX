@@ -446,7 +446,8 @@ fn welcome_file(m: &Model) -> std::path::PathBuf {
     let user = tuilnux_config::config_dir().map(|d| d.join("welcome.ASCIIA"));
     match user {
         Some(p) if p.is_file() => p,
-        _ => "/usr/share/tuilnux/welcome.ASCIIA".into(),
+        _ => tuilnux_config::share_file("welcome.ASCIIA")
+            .unwrap_or_else(|| "/usr/share/tuilnux/welcome.ASCIIA".into()),
     }
 }
 
@@ -1086,7 +1087,10 @@ fn wayland_page() -> Page {
                     if std::path::Path::new("/usr/bin/Xwayland").exists() {
                         "installiert".into()
                     } else {
-                        "nicht installiert (pacman -S xorg-xwayland)".into()
+                        format!(
+                            "nicht installiert ({})",
+                            tuilnux_config::install_hint(tuilnux_config::Package::Xwayland)
+                        )
                     }
                 },
             ),

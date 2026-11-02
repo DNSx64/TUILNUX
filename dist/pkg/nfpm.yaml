@@ -1,0 +1,70 @@
+# nfpm-Beschreibung für .deb (Debian/Ubuntu) und .rpm (Fedora/openSUSE).
+# Aufruf über dist/pkg/build.sh – das setzt ${STAGE}, ${PKGDIR} und ${VERSION} ein.
+name: tuilnux
+arch: amd64
+platform: linux
+version: ${VERSION}
+release: 1
+section: x11
+priority: optional
+maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
+vendor: TUILNUX
+homepage: https://github.com/DNSx64/TUILNUX
+license: MIT
+description: |
+  Terminal-Desktopumgebung: Vollbild-Terminal mit Fenstern, Taskleiste,
+  Taskmanager und TUI-Apps.
+  Enthält tuilnux, tterm, tlogin (greetd-Greeter), tfiles, tedit, ttop,
+  tsettings, asciia, tview, wallpaper und tuilnux-setup. Die Programme sind
+  statisch gelinkt und laufen auf jeder x86_64-Distribution.
+
+depends:
+  - bash
+contents:
+  - src: ${STAGE}/usr/
+    dst: /usr/
+    type: tree
+  - src: ${STAGE}/etc/tuilnux/session.conf
+    dst: /etc/tuilnux/session.conf
+    type: config|noreplace
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: ${PKGDIR}/postinstall.sh
+
+overrides:
+  deb:
+    recommends:
+      - greetd
+      - labwc
+      - foot
+      - xwayland
+      - wlr-randr
+      - wl-clipboard
+      - fonts-dejavu-core
+    suggests:
+      - libpam-u2f
+      - libpam-google-authenticator
+      - cage
+      - gpm
+  rpm:
+    recommends:
+      - greetd
+      - labwc
+      - foot
+      - (xorg-x11-server-Xwayland or xwayland)
+      - wlr-randr
+      - wl-clipboard
+    suggests:
+      - (pam-u2f or pam_u2f)
+      - (google-authenticator or google-authenticator-libpam)
+      - cage
+
+deb:
+  fields:
+    Bugs: https://github.com/DNSx64/TUILNUX/issues
+rpm:
+  group: User Interface/Desktops
+  summary: Terminal-Desktopumgebung mit Fenstern, Taskleiste und TUI-Apps
+  compression: zstd

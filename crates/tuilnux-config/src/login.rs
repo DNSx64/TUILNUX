@@ -221,12 +221,24 @@ pub fn pam_greetd(original: &str, s: &LoginSettings) -> String {
         .lines()
         .filter(|l| !l.trim_end().ends_with(PAM_MARK))
         .collect();
-    let is_auth = |l: &&str| l.split_whitespace().next() == Some("auth");
+    // Debian/Ubuntu: `@include common-auth` statt `auth include …`.
+    let debian_auth = |l: &&str| {
+        let mut w = l.split_whitespace();
+        w.next() == Some("@include") && w.next().is_some_and(|f| f.ends_with("-auth"))
+    };
+    let is_auth = |l: &&str| {
+        l.split_whitespace()
+            .next()
+            .map(|t| t.trim_start_matches('-'))
+            == Some("auth")
+            || debian_auth(l)
+    };
     let is_stack = |l: &&str| {
-        is_auth(l)
-            && l.split_whitespace()
-                .nth(1)
-                .is_some_and(|c| c == "include" || c == "substack")
+        debian_auth(l)
+            || (is_auth(l)
+                && l.split_whitespace()
+                    .nth(1)
+                    .is_some_and(|c| c == "include" || c == "substack"))
     };
     let first = lines
         .iter()
@@ -388,6 +400,35 @@ mod tests {
             "{pam}"
         );
         assert!(!pam.contains("nullok"));
+    }
+
+    #[test]
+    fn pam_debian_common_auth() {
+        const DEBIAN: &str = "#%PAM-1.0\n\
+            auth       requisite    pam_nologin.so\n\
+            @include common-auth\n\
+            -auth      optional     pam_gnome_keyring.so\n\
+            @include common-account\n\
+            session    required     pam_limits.so\n\
+            @include common-session\n";
+        let s = LoginSettings {
+            key: FactorMode::Alternative,
+            otp: FactorMode::Second,
+            ..Default::default()
+        };
+        let pam = pam_greetd(DEBIAN, &s);
+        let lines: Vec<&str> = pam.lines().collect();
+        let pos = |needle: &str| lines.iter().position(|l| l.contains(needle)).unwrap();
+        assert!(pos("pam_u2f.so") < pos("@include common-auth"), "{pam}");
+        assert!(
+            pos("pam_google_authenticator") > pos("pam_gnome_keyring"),
+            "{pam}"
+        );
+        assert!(
+            pos("pam_google_authenticator") < pos("@include common-account"),
+            "{pam}"
+        );
+        assert_eq!(pam_greetd(&pam, &LoginSettings::default()), DEBIAN);
     }
 
     #[test]
