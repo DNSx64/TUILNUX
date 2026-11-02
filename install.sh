@@ -33,6 +33,7 @@ NVIDIA=auto
 SOURCE=auto
 NVIDIA_CONF=/etc/modprobe.d/tuilnux-nvidia.conf
 BACKEND=auto
+LOGIN=greetd
 CONSOLE_FONT=${TUILNUX_CONSOLE_FONT-}
 VCONSOLE=/etc/vconsole.conf
 VCONSOLE_BACKUP=/etc/vconsole.conf.tuilnux-backup
@@ -55,6 +56,12 @@ Aufruf: bash install.sh [Optionen]
   --nvidia             NVIDIA-Treiber für Wayland einrichten (nvidia-open-dkms, egl-wayland,
                        nvidia_drm.modeset=1); Standard: automatisch, wenn eine NVIDIA-Karte steckt
   --no-nvidia          NVIDIA-Treiber nicht anfassen
+  --login MODUS        Start nach dem Booten:
+                         greetd     Anmeldebildschirm tlogin (Standard)
+                         autologin  direkt in TUILNUX, ohne Anmeldung (kein greetd)
+                         console    Text-Login der Konsole, danach TUILNUX (kein greetd)
+                       später ändern: sudo tuilnux-boot autologin|console|greetd|off
+  --autologin          kurz für --login autologin
   --no-greetd          keinen Anmeldebildschirm einrichten
   --no-enable          greetd einrichten, aber nicht beim Booten aktivieren
   --no-bashrc          ~/.bashrc nicht anpassen
@@ -95,6 +102,12 @@ while (($#)); do
         --minimal) GRAPHICAL=0 ;;
         --nvidia) NVIDIA=1 ;;
         --no-nvidia) NVIDIA=0 ;;
+        --login)
+            LOGIN=${2-}
+            shift
+            ;;
+        --login=*) LOGIN=${1#*=} ;;
+        --autologin) LOGIN=autologin ;;
         --no-greetd) GREETD=0 ;;
         --no-enable) ENABLE=0 ;;
         --no-bashrc) BASHRC=0 ;;
@@ -116,6 +129,15 @@ while (($#)); do
     esac
     shift
 done
+
+case $LOGIN in
+    greetd) ;;
+    autologin | console) GREETD=0 ;;
+    *)
+        echo "--login: greetd, autologin oder console (nicht '$LOGIN')" >&2
+        exit 2
+        ;;
+esac
 
 if [[ -t 1 ]]; then
     C_INFO=$'\033[1;36m' C_WARN=$'\033[1;33m' C_ERR=$'\033[1;31m' C_OFF=$'\033[0m'
@@ -453,12 +475,13 @@ install_manual() {
         files+=("$PREFIX/bin/$bin")
     done
     root install -Dm755 "$ROOT/dist/tuilnux-session" "$PREFIX/bin/tuilnux-session"
+    root install -Dm755 "$ROOT/dist/tuilnux-boot" "$PREFIX/bin/tuilnux-boot"
     root install -Dm644 "$ROOT/dist/bashrc.sh" "$SHARE/bashrc.sh"
     root install -Dm644 "$ROOT/dist/greetd/config.toml" "$SHARE/greetd/config.toml"
     root install -Dm644 "$ROOT"/assets/*.ASCIIA "$ROOT"/assets/*.png -t "$SHARE/"
     root install -Dm644 "$ROOT"/crates/tuilnux-i18n/lang/*.toml -t "$SHARE/lang/"
     root install -Dm644 "$ROOT"/dist/labwc/* -t "$SHARE/labwc/"
-    files+=("$PREFIX/bin/tuilnux-session" "$SHARE/bashrc.sh" "$SHARE/greetd/config.toml")
+    files+=("$PREFIX/bin/tuilnux-session" "$PREFIX/bin/tuilnux-boot" "$SHARE/bashrc.sh" "$SHARE/greetd/config.toml")
     local asset
     for asset in "$ROOT"/assets/*.ASCIIA "$ROOT"/assets/*.png; do files+=("$SHARE/$(basename "$asset")"); done
     for asset in "$ROOT"/crates/tuilnux-i18n/lang/*.toml; do files+=("$SHARE/lang/$(basename "$asset")"); done
@@ -623,6 +646,21 @@ configure_greetd() {
     state_set greetd_enabled 1
 }
 
+# autologin/console: Start ohne greetd über getty + Login-Shell (tuilnux-boot).
+configure_boot() {
+    [[ $LOGIN == greetd ]] && return 0
+    if ((!ENABLE)); then
+        say "Startmodus $LOGIN nicht aktiviert (--no-enable). Später: sudo tuilnux-boot $LOGIN"
+        return 0
+    fi
+    local tool
+    tool=$(command -v tuilnux-boot 2>/dev/null || echo "$PREFIX/bin/tuilnux-boot")
+    [[ -x $tool ]] || tool=$PREFIX/bin/tuilnux-boot
+    say "Startmodus: $LOGIN (ohne greetd)"
+    root "$tool" "$LOGIN" --user "$(id -un)"
+    state_set boot_mode "$LOGIN"
+}
+
 configure_locale() {
     if [[ -n $SYS_LOCALE ]]; then
         say "Systemsprache: $SYS_LOCALE"
@@ -746,6 +784,7 @@ do_install() {
     configure_locale
     configure_nvidia
     configure_greetd
+    configure_boot
     configure_user
     self_test
 
@@ -759,6 +798,11 @@ ${C_INFO}TUILNUX ist installiert.${C_OFF}
   Backend ändern:        /etc/tuilnux/session.conf  (auto | labwc | cage | tty)
   Entfernen:             bash install.sh --uninstall
 EOF
+    case $(state_get boot_mode) in
+        autologin) echo "  Beim nächsten Neustart startet TUILNUX direkt (ohne Anmeldung) auf TTY1." ;;
+        console) echo "  Beim nächsten Neustart: auf TTY1 anmelden, danach startet TUILNUX." ;;
+    esac
+    echo "  Startmodus ändern:     sudo tuilnux-boot autologin|console|greetd|off"
     if [[ $(state_get greetd_enabled) == 1 ]]; then
         echo "  Beim nächsten Neustart erscheint die TUILNUX-Anmeldung (tlogin) auf TTY1."
         echo "  Notfalls: Strg+Alt+F2, anmelden, bash install.sh --uninstall"
@@ -778,6 +822,14 @@ do_uninstall() {
         if [[ -n $dm ]]; then
             say "Aktiviere wieder: $dm"
             root systemctl enable "$dm.service" || warn "$dm konnte nicht aktiviert werden"
+        fi
+    fi
+    if [[ -e /etc/tuilnux/boot.conf || -e /etc/profile.d/tuilnux-autostart.sh ]]; then
+        say "Entferne den automatischen Start (tuilnux-boot)"
+        if have tuilnux-boot; then
+            root tuilnux-boot off || warn "tuilnux-boot off fehlgeschlagen"
+        elif [[ -x $PREFIX/bin/tuilnux-boot ]]; then
+            root "$PREFIX/bin/tuilnux-boot" off || warn "tuilnux-boot off fehlgeschlagen"
         fi
     fi
     if [[ -e /etc/pam.d/greetd.tuilnux-orig || -e /etc/tuilnux/login.toml ]]; then

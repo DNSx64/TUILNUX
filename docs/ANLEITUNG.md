@@ -1,6 +1,6 @@
 # TUILNUX – Anleitung
 
-Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.1 Schritt für Schritt.
+Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.2 Schritt für Schritt.
 Die Kurzfassung steht in der [README](../README.md).
 
 **Inhalt**
@@ -15,6 +15,7 @@ Die Kurzfassung steht in der [README](../README.md).
    - [3.4 Andere Distributionen](#34-andere-distributionen)
    - [3.5 Was der Installer verändert](#35-was-der-installer-verändert)
    - [3.6 Deinstallieren](#36-deinstallieren)
+   - [3.7 Direkt booten ohne greetd](#37-direkt-booten-ohne-greetd)
 4. [Erster Start und Anmeldung](#4-erster-start-und-anmeldung)
 5. [Der Desktop](#5-der-desktop)
 6. [Fenster, Taskleiste und Taskmanager](#6-fenster-taskleiste-und-taskmanager)
@@ -50,6 +51,7 @@ Bausteine:
 | `tlogin` | Anmeldebildschirm (greetd-Greeter) |
 | `tuilnux` | Desktop: Vollbild-Shell, TUI-Fenster, Taskleiste, Taskmanager, Steuer-CLI |
 | `tuilnux-session` | Startet das passende Backend (labwc, cage oder Linux-Konsole) |
+| `tuilnux-boot` | Start nach dem Booten: tlogin (greetd), Autologin oder Text-Login |
 | `tuilnux-setup` | Grafischer Installer / Ersteinrichtung |
 | `tsettings` | Einstellungen |
 | `tfiles`, `tedit`, `ttop` | Dateibrowser, Editor, Systemmonitor |
@@ -133,7 +135,9 @@ bash install.sh --dry-run                   # nur anzeigen, was passieren würde
 | `--minimal` | ohne labwc, foot, Xwayland, wlr-randr (nur Linux-Konsole) |
 | `--nvidia` / `--no-nvidia` | NVIDIA-Treiber für Wayland einrichten / nicht anfassen |
 | `--no-greetd` | keinen Anmeldebildschirm einrichten |
-| `--no-enable` | greetd einrichten, aber nicht beim Booten aktivieren |
+| `--no-enable` | greetd bzw. Startmodus einrichten, aber nicht beim Booten aktivieren |
+| `--login MODE` | Start nach dem Booten: `greetd` (Standard, tlogin), `autologin` (direkt, ohne Passwort) oder `console` (Text-Login, dann TUILNUX) – siehe [3.7](#37-direkt-booten-ohne-greetd) |
+| `--autologin` | Kurzform für `--login autologin` |
 | `--no-bashrc` | `~/.bashrc` nicht anpassen |
 | `--no-font` | Konsolenschrift nicht auf Terminus umstellen |
 | `--no-tests` | Tests beim Bauen überspringen |
@@ -151,7 +155,7 @@ Umgebungsvariablen: `TUILNUX_CONSOLE_FONT=ter-v32n` (eigene Konsolenschrift), `T
 Jedes [Release](https://github.com/DNSx64/TUILNUX/releases) enthält ein fertiges Arch-Paket:
 
 ```sh
-sudo pacman -U tuilnux-0.2.1-1-x86_64.pkg.tar.zst
+sudo pacman -U tuilnux-0.2.2-1-x86_64.pkg.tar.zst
 sudo pacman -S --needed greetd labwc foot xorg-xwayland wlr-randr wl-clipboard terminus-font
 ```
 
@@ -249,8 +253,8 @@ GitHub. labwc, foot, greetd, Xwayland und wlr-randr werden als empfohlene Pakete
 Danach `tuilnux-setup` starten; das Paket zeigt außerdem an, wie greetd + tlogin aktiviert wird.
 
 **Einzelne Pakete** aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
-`sudo apt install ./tuilnux_0.2.1-1_amd64.deb` bzw. `sudo dnf install ./tuilnux-0.2.1-1.x86_64.rpm`.
-Für jede andere x86_64-Distribution gibt es `tuilnux-0.2.1-x86_64-linux.tar.gz` (Aufbau wie `/usr`,
+`sudo apt install ./tuilnux_0.2.2-1_amd64.deb` bzw. `sudo dnf install ./tuilnux-0.2.2-1.x86_64.rpm`.
+Für jede andere x86_64-Distribution gibt es `tuilnux-0.2.2-x86_64-linux.tar.gz` (Aufbau wie `/usr`,
 mit `sudo tar -xzf … -C /` entpacken).
 
 **install.sh** funktioniert überall: Es erkennt apt, dnf und zypper, installiert die passenden
@@ -294,6 +298,41 @@ bash install.sh --uninstall
 ```
 
 Stellt den vorherigen Login und die Konsolenschrift wieder her und entfernt den `.bashrc`-Block.
+Ein mit `tuilnux-boot` eingerichteter Direktstart wird dabei ebenfalls entfernt (`tuilnux-boot off`).
+
+### 3.7 Direkt booten ohne greetd
+
+Wer keinen Anmeldebildschirm will, startet TUILNUX direkt als Login-Shell der Konsole. Das
+erledigt `tuilnux-boot` (auch im Installer unter „Start nach dem Booten“ und in
+tsettings → Anmeldung):
+
+```sh
+sudo tuilnux-boot autologin   # direkt in TUILNUX, ohne Passwort (getty-Autologin auf tty1)
+sudo tuilnux-boot console     # normaler Text-Login auf tty1, danach startet TUILNUX
+sudo tuilnux-boot greetd      # zurück zum Anmeldebildschirm tlogin
+sudo tuilnux-boot off         # kein Autostart, vorheriger Anmeldemanager (gdm, sddm …) wieder an
+tuilnux-boot status           # aktueller Modus
+```
+
+Optionen: `--user NAME` (Standard: der aufrufende Benutzer), `--tty N` (Standard: 1).
+Die Änderung wirkt ab dem nächsten Neustart.
+
+So funktioniert es:
+
+- greetd und andere Anmeldemanager werden deaktiviert, `getty@tty1` aktiviert.
+- `autologin` legt `/etc/systemd/system/getty@tty1.service.d/tuilnux-autologin.conf` an
+  (`agetty --autologin BENUTZER`).
+- `/etc/profile.d/tuilnux-autostart.sh` startet nach der Anmeldung auf diesem TTY
+  `tuilnux-session` – also denselben Desktop wie nach tlogin (labwc/cage/tty je nach
+  `/etc/tuilnux/session.conf`). Einstellungen stehen in `/etc/tuilnux/boot.conf`.
+- Beendet sich TUILNUX, landet man in der normalen Shell (`tuilnux-session` startet neu,
+  `exit` meldet ab) – es gibt also keine Neustart-Schleife, falls etwas abstürzt.
+
+> ⚠️ Bei `autologin` ist jeder angemeldet, der den Rechner einschaltet. Sicherheitsschlüssel,
+> Handy-Code und Kontosperre aus [Kapitel 12](#12-sichere-anmeldung-sperre-sicherheitsschlüssel-qr-code)
+> gelten nur mit `greetd` (tlogin). Für Laptops ist `console` oder `greetd` die bessere Wahl.
+
+Bei der Installation direkt so einrichten: `bash install.sh --login autologin` (oder `--autologin`).
 
 ## 4. Erster Start und Anmeldung
 
@@ -632,6 +671,7 @@ Protokoll: `~/.local/state/tuilnux/compositor.log`.
 | `tuilnux shell-init bash` | erzeugte bashrc ausgeben |
 | `tuilnux otp setup\|status\|remove` | Handy per QR-Code koppeln |
 | `tuilnux key add\|list\|remove` | Sicherheitsschlüssel koppeln |
+| `tuilnux-boot autologin\|console\|greetd\|off\|status` | Start nach dem Booten wählen ([3.7](#37-direkt-booten-ohne-greetd)) |
 | `tuilnux-setup [--root ORDNER]` | Installer / Ersteinrichtung |
 | `tsettings [bereich]` | Einstellungen |
 | `tfiles [ordner]` · `tedit [datei]` · `ttop` | Dateien · Editor · Systemmonitor |
@@ -693,6 +733,8 @@ Limits: 8 MiB, 10 000 Frames, 400×200 Zeichen, höchstens 120 fps.
 | `/etc/tuilnux/session.conf` | Backend systemweit |
 | `/etc/tuilnux/login.toml` | Anmelde-Einstellungen (`tlogin setup`) |
 | `/etc/greetd/config.toml` | greetd → tlogin |
+| `/etc/tuilnux/boot.conf` | Startmodus von `tuilnux-boot` (MODE, USER, TTY) |
+| `/etc/profile.d/tuilnux-autostart.sh` | startet TUILNUX nach dem Konsolen-Login (autologin/console) |
 | `/usr/share/tuilnux/` | Logo, Animationen, Sprachpakete, bashrc.sh, labwc-Vorlage |
 
 ## 20. Fehlerbehebung
@@ -700,6 +742,7 @@ Limits: 8 MiB, 10 000 Frames, 400×200 Zeichen, höchstens 120 fps.
 | Problem | Lösung |
 |---|---|
 | Nach dem Neustart kein Login | `Strg+Alt+F2`, anmelden, `bash install.sh --uninstall` oder `sudo systemctl disable greetd` |
+| Direktstart wieder abschalten | `Strg+Alt+F2`, anmelden, `sudo tuilnux-boot greetd` oder `sudo tuilnux-boot off` |
 | Konto gesperrt | `sudo faillock --user NAME --reset` |
 | Schwarzer Bildschirm / labwc startet nicht | `~/.local/state/tuilnux/compositor.log`; Backend in `session.conf` auf `tty` stellen |
 | Falsche Auflösung oder Hz | tsettings → Bildschirme, Modus wählen; `tuilnux outputs` zeigt, was der Monitor meldet |

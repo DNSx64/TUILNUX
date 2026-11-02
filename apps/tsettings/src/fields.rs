@@ -1169,6 +1169,21 @@ fn system_login_state(m: &Model) -> String {
     }
 }
 
+/// Ausgabe von `tuilnux-boot status` ohne das Präfix „Start: “.
+fn boot_mode_state() -> String {
+    std::process::Command::new("tuilnux-boot")
+        .arg("status")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| {
+            let out = String::from_utf8_lossy(&o.stdout);
+            let line = out.lines().next().unwrap_or_default();
+            line.strip_prefix("Start: ").unwrap_or(line).to_string()
+        })
+        .unwrap_or_else(|| "tuilnux-boot nicht gefunden".into())
+}
+
 fn login_page() -> Page {
     Page {
         title: "Anmeldung",
@@ -1178,6 +1193,35 @@ fn login_page() -> Page {
                 "Systemzustand",
                 "/etc/tuilnux/login.toml im Vergleich zu diesem Entwurf.",
                 system_login_state,
+            ),
+            info(
+                "Start nach dem Booten",
+                "Wie TUILNUX nach dem Einschalten startet (tuilnux-boot).",
+                |_| boot_mode_state(),
+            ),
+            action(
+                "Direkt in TUILNUX booten",
+                "Ohne greetd und ohne Passwort: die Konsole meldet dich automatisch an, TUILNUX startet sofort. Ab dem nächsten Neustart.",
+                "Enter: sudo",
+                |_| run_window("sudo tuilnux-boot autologin", &[], "Startmodus"),
+            ),
+            action(
+                "Text-Login, dann TUILNUX",
+                "Ohne greetd: normaler Login der Konsole, danach startet TUILNUX automatisch.",
+                "Enter: sudo",
+                |_| run_window("sudo tuilnux-boot console", &[], "Startmodus"),
+            ),
+            action(
+                "Anmeldebildschirm tlogin",
+                "greetd mit tlogin – nötig für Sicherheitsschlüssel und Handy-Code.",
+                "Enter: sudo",
+                |_| run_window("sudo tuilnux-boot greetd", &[], "Startmodus"),
+            ),
+            action(
+                "Nicht automatisch starten",
+                "Kein Autostart; ein vorheriger Anmeldemanager (gdm, sddm …) wird wieder aktiviert.",
+                "Enter: sudo",
+                |_| run_window("sudo tuilnux-boot off", &[], "Startmodus"),
             ),
             hex_text!(
                 "Linienfarbe",

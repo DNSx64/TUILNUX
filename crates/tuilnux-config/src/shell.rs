@@ -119,6 +119,7 @@ impl Default for BashSettings {
 const NEVER_WRAP: &[&str] = &[
     "tuilnux",
     "tuilnux-session",
+    "tuilnux-boot",
     "tsettings",
     "tfiles",
     "ttop",

@@ -1,7 +1,7 @@
 # Maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
 
 pkgname=tuilnux
-pkgver=0.2.1
+pkgver=0.2.2
 pkgrel=1
 pkgdesc="Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps"
 arch=('x86_64' 'aarch64')
@@ -57,6 +57,7 @@ package() {
         install -Dm755 "target/release/$bin" "$pkgdir/usr/bin/$bin"
     done
     install -Dm755 dist/tuilnux-session "$pkgdir/usr/bin/tuilnux-session"
+    install -Dm755 dist/tuilnux-boot "$pkgdir/usr/bin/tuilnux-boot"
     install -Dm644 dist/session.conf "$pkgdir/etc/tuilnux/session.conf"
     install -Dm644 dist/bashrc.sh "$pkgdir/usr/share/tuilnux/bashrc.sh"
     install -Dm644 assets/*.ASCIIA assets/*.png -t "$pkgdir/usr/share/tuilnux/"

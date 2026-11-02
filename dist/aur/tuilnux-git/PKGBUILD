@@ -65,6 +65,7 @@ package() {
         install -Dm755 "target/release/$bin" "$pkgdir/usr/bin/$bin"
     done
     install -Dm755 dist/tuilnux-session "$pkgdir/usr/bin/tuilnux-session"
+    install -Dm755 dist/tuilnux-boot "$pkgdir/usr/bin/tuilnux-boot"
     install -Dm644 dist/session.conf "$pkgdir/etc/tuilnux/session.conf"
     install -Dm644 dist/bashrc.sh "$pkgdir/usr/share/tuilnux/bashrc.sh"
     install -Dm644 assets/*.ASCIIA assets/*.png -t "$pkgdir/usr/share/tuilnux/"

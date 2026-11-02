@@ -1,0 +1,235 @@
+#!/bin/sh
+# tuilnux-boot – legt fest, wie TUILNUX nach dem Booten startet.
+#
+#   tuilnux-boot status            aktuellen Modus anzeigen
+#   tuilnux-boot autologin         direkt in TUILNUX booten, ohne Anmeldung
+#   tuilnux-boot console           Text-Login der Konsole, danach startet TUILNUX
+#   tuilnux-boot greetd            Anmeldebildschirm tlogin (greetd)
+#   tuilnux-boot off               nichts automatisch starten, vorherigen Anmeldemanager zurück
+#
+# Optionen: --user NAME (Standard: aufrufender Benutzer), --tty N (Standard: 1)
+#
+# autologin und console brauchen weder greetd noch einen Anmeldemanager: Auf der
+# Konsole (getty) meldet sich der Benutzer an – bei autologin automatisch – und
+# seine Login-Shell startet über /etc/profile.d/tuilnux-autostart.sh die Sitzung.
+# Wird TUILNUX beendet, bleibt man in der Shell (neu starten: tuilnux-session).
+# Änderungen wirken ab dem nächsten Neustart.
+set -eu
+
+CONF=/etc/tuilnux/boot.conf
+STATE=/var/lib/tuilnux/boot.state
+HOOK=/etc/profile.d/tuilnux-autostart.sh
+GREETD_CONF=/etc/greetd/config.toml
+GREETD_BACKUP=/etc/greetd/config.toml.tuilnux-backup
+
+die() {
+    echo "tuilnux-boot: $*" >&2
+    exit 1
+}
+say() { echo "==> $*"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+usage() {
+    sed -n '2,17s/^# \{0,1\}//p' "$0"
+}
+
+mode='' user='' tty=1
+while [ $# -gt 0 ]; do
+    case $1 in
+        status | autologin | console | greetd | off) mode=$1 ;;
+        --user) user=${2-}; shift ;;
+        --user=*) user=${1#*=} ;;
+        --tty) tty=${2-}; shift ;;
+        --tty=*) tty=${1#*=} ;;
+        -h | --help) usage; exit 0 ;;
+        *) die "unbekannt: $1 (siehe --help)" ;;
+    esac
+    shift
+done
+[ -n "$mode" ] || mode=status
+case $tty in
+    [1-9] | [1-5][0-9] | 6[0-3]) ;;
+    *) die "ungültige TTY: $tty" ;;
+esac
+
+dropin_dir() { echo "/etc/systemd/system/getty@tty$1.service.d"; }
+DROPIN_NAME=tuilnux-autologin.conf
+
+conf_get() {
+    [ -r "$CONF" ] || return 0
+    sed -n "s/^$1=//p" "$CONF" | tr -d '"' | tail -n 1
+}
+
+# Name des aktiven Anmeldemanagers (gdm, sddm, lightdm, greetd …), sonst leer.
+current_dm() {
+    link=$(readlink /etc/systemd/system/display-manager.service 2>/dev/null) || link=''
+    if [ -n "$link" ]; then
+        basename "$link" .service
+    elif systemctl is-enabled --quiet greetd.service 2>/dev/null; then
+        echo greetd
+    fi
+}
+
+if [ "$mode" = status ]; then
+    m=$(conf_get MODE)
+    t=$(conf_get TTY)
+    dm=$(current_dm)
+    if [ -z "$m" ]; then
+        if [ "$dm" = greetd ] && grep -qs tlogin "$GREETD_CONF"; then m=greetd; else m=off; fi
+    fi
+    case $m in
+        autologin) echo "Start: direkt in TUILNUX (Benutzer $(conf_get USER), tty${t:-1}, ohne Anmeldung)" ;;
+        console) echo "Start: Text-Login auf tty${t:-1}, danach TUILNUX für $(conf_get USER)" ;;
+        greetd) echo "Start: Anmeldebildschirm tlogin (greetd)" ;;
+        *) echo "Start: TUILNUX startet nicht automatisch${dm:+ (Anmeldemanager: $dm)}" ;;
+    esac
+    exit 0
+fi
+
+# Alles Weitere braucht root; den Benutzer vorher festhalten.
+if [ "$(id -u)" -ne 0 ]; then
+    [ -n "$user" ] || user=$(id -un)
+    have sudo || die "bitte als root ausführen"
+    exec sudo "$0" "$mode" --user "$user" --tty "$tty"
+fi
+[ -n "$user" ] || user=${SUDO_USER:-}
+if [ "$mode" = autologin ] || [ "$mode" = console ]; then
+    [ -n "$user" ] && [ "$user" != root ] || die "Benutzer fehlt – tuilnux-boot $mode --user NAME"
+    id "$user" >/dev/null 2>&1 || die "Benutzer $user existiert nicht"
+fi
+have systemctl || die "systemd wird benötigt"
+
+# Merkt sich einmalig den Anmeldemanager vor TUILNUX, um ihn bei off zurückzuholen.
+remember_dm() {
+    dm=$(current_dm)
+    [ -n "$dm" ] || return 0
+    [ -s "$STATE" ] && return 0
+    mkdir -p "$(dirname "$STATE")"
+    echo "PREVIOUS_DM=$dm" >"$STATE"
+}
+
+disable_dms() {
+    dm=$(current_dm)
+    if [ -n "$dm" ]; then
+        say "Deaktiviere Anmeldemanager: $dm"
+        systemctl disable "$dm.service" >/dev/null 2>&1 || true
+    fi
+    if systemctl is-enabled --quiet greetd.service 2>/dev/null; then
+        systemctl disable greetd.service >/dev/null 2>&1 || true
+    fi
+}
+
+remove_autostart() {
+    for d in /etc/systemd/system/getty@tty*.service.d; do
+        [ -e "$d/$DROPIN_NAME" ] || continue
+        rm -f "$d/$DROPIN_NAME"
+        rmdir "$d" 2>/dev/null || true
+    done
+    rm -f "$HOOK" "$CONF"
+}
+
+write_hook() {
+    mkdir -p "$(dirname "$HOOK")" "$(dirname "$CONF")"
+    cat >"$CONF" <<EOF
+# Von tuilnux-boot geschrieben – ändern mit: sudo tuilnux-boot autologin|console|greetd|off
+MODE=$mode
+USER=$user
+TTY=$tty
+EOF
+    cat >"$HOOK" <<'EOF'
+# TUILNUX: startet die Sitzung nach der Anmeldung auf der Konsole (tuilnux-boot).
+if [ -r /etc/tuilnux/boot.conf ] && [ -z "${WAYLAND_DISPLAY-}${DISPLAY-}${TUILNUX_AUTOSTARTED-}" ]; then
+    tuilnux_boot_user=$(sed -n 's/^USER=//p' /etc/tuilnux/boot.conf | tail -n 1)
+    tuilnux_boot_tty=$(sed -n 's/^TTY=//p' /etc/tuilnux/boot.conf | tail -n 1)
+    if [ "$(id -un)" = "$tuilnux_boot_user" ] && [ "$(tty 2>/dev/null)" = "/dev/tty${tuilnux_boot_tty:-1}" ] &&
+        command -v tuilnux-session >/dev/null 2>&1; then
+        TUILNUX_AUTOSTARTED=1
+        export TUILNUX_AUTOSTARTED
+        tuilnux-session
+        printf '\nTUILNUX wurde beendet. Neu starten: tuilnux-session · Abmelden: exit\n'
+    fi
+    unset tuilnux_boot_user tuilnux_boot_tty
+fi
+EOF
+    chmod 644 "$HOOK" "$CONF"
+}
+
+agetty_path() {
+    for p in /sbin/agetty /usr/sbin/agetty /usr/bin/agetty; do
+        [ -x "$p" ] && { echo "$p"; return; }
+    done
+    command -v agetty || echo /sbin/agetty
+}
+
+write_autologin() {
+    d=$(dropin_dir "$tty")
+    mkdir -p "$d"
+    cat >"$d/$DROPIN_NAME" <<EOF
+# Von tuilnux-boot geschrieben: $user wird auf tty$tty automatisch angemeldet.
+[Service]
+ExecStart=
+ExecStart=-$(agetty_path) -o '-p -f -- \\\\u' --noclear --autologin $user %I \$TERM
+EOF
+}
+
+case $mode in
+    autologin | console)
+        remember_dm
+        disable_dms
+        remove_autostart
+        write_hook
+        [ "$mode" = autologin ] && write_autologin
+        systemctl enable "getty@tty$tty.service" >/dev/null 2>&1 || true
+        systemctl daemon-reload 2>/dev/null || true
+        if [ "$mode" = autologin ]; then
+            say "Nach dem Neustart startet TUILNUX direkt als $user auf tty$tty – ohne Passwort."
+            echo "    Hinweis: Wer den Rechner einschaltet, ist angemeldet. tlogin-Schutz (Schlüssel, Handy-Code) greift hier nicht."
+        else
+            say "Nach dem Neustart: auf tty$tty anmelden ($user), danach startet TUILNUX."
+        fi
+        ;;
+    greetd)
+        have greetd || [ -x /usr/sbin/greetd ] || die "greetd ist nicht installiert"
+        remove_autostart
+        if ! grep -qs tlogin "$GREETD_CONF"; then
+            share=''
+            for d in "$(dirname "$0")/../share/tuilnux" /usr/share/tuilnux /usr/local/share/tuilnux; do
+                [ -r "$d/greetd/config.toml" ] && { share=$d; break; }
+            done
+            [ -n "$share" ] || die "greetd/config.toml von TUILNUX nicht gefunden"
+            greeter=greeter
+            for u in greeter _greetd greetd; do
+                getent passwd "$u" >/dev/null 2>&1 && { greeter=$u; break; }
+            done
+            mkdir -p "$(dirname "$GREETD_CONF")"
+            [ -e "$GREETD_CONF" ] && [ ! -e "$GREETD_BACKUP" ] && cp -a "$GREETD_CONF" "$GREETD_BACKUP"
+            sed "s/^user = .*/user = \"$greeter\"/" "$share/greetd/config.toml" >"$GREETD_CONF"
+            say "$GREETD_CONF auf tlogin umgestellt (Greeter-Benutzer $greeter)"
+        fi
+        dm=$(current_dm)
+        if [ -n "$dm" ] && [ "$dm" != greetd ]; then
+            remember_dm
+            say "Deaktiviere Anmeldemanager: $dm"
+            systemctl disable "$dm.service" >/dev/null 2>&1 || true
+        fi
+        systemctl enable greetd.service >/dev/null 2>&1 || die "greetd.service konnte nicht aktiviert werden"
+        systemctl daemon-reload 2>/dev/null || true
+        say "Nach dem Neustart erscheint der Anmeldebildschirm tlogin."
+        ;;
+    off)
+        remove_autostart
+        if [ "$(current_dm)" = greetd ] && grep -qs tlogin "$GREETD_CONF"; then
+            say "Deaktiviere greetd (tlogin)"
+            systemctl disable greetd.service >/dev/null 2>&1 || true
+        fi
+        prev=''
+        [ -r "$STATE" ] && prev=$(sed -n 's/^PREVIOUS_DM=//p' "$STATE")
+        if [ -n "$prev" ] && [ "$prev" != greetd ] && [ -z "$(current_dm)" ]; then
+            say "Aktiviere wieder: $prev"
+            systemctl enable "$prev.service" >/dev/null 2>&1 || echo "    $prev konnte nicht aktiviert werden" >&2
+        fi
+        rm -f "$STATE"
+        systemctl daemon-reload 2>/dev/null || true
+        say "TUILNUX startet nicht mehr automatisch."
+        ;;
+esac

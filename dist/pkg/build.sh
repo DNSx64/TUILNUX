@@ -42,6 +42,7 @@ if file "$STAGE/usr/bin/tuilnux" | grep -q 'dynamically linked'; then
 fi
 cd "$ROOT"
 install -Dm755 dist/tuilnux-session "$STAGE/usr/bin/tuilnux-session"
+install -Dm755 dist/tuilnux-boot "$STAGE/usr/bin/tuilnux-boot"
 install -Dm644 dist/session.conf "$STAGE/etc/tuilnux/session.conf"
 install -Dm644 dist/bashrc.sh "$STAGE/usr/share/tuilnux/bashrc.sh"
 install -Dm644 assets/*.ASCIIA assets/*.png -t "$STAGE/usr/share/tuilnux/"

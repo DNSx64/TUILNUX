@@ -50,6 +50,25 @@ const BACKENDS: &[(&str, &str)] = &[
     ("tty", "tty (Linux-Konsole)"),
 ];
 
+/// Start nach dem Booten: (Modus für install.sh --login, Bezeichnung, Hilfe).
+const LOGINS: &[(&str, &str, &str)] = &[
+    (
+        "greetd",
+        "Anmeldebildschirm tlogin",
+        "Sichere Anmeldung im TUILNUX-Design (greetd) mit Sicherheitsschlüssel und Handy-Code.",
+    ),
+    (
+        "autologin",
+        "direkt starten, ohne Anmeldung",
+        "Bootet ohne greetd und ohne Passwort direkt in TUILNUX (Konsole meldet dich automatisch an). Später: sudo tuilnux-boot.",
+    ),
+    (
+        "console",
+        "Text-Login, dann TUILNUX",
+        "Ohne greetd: normaler Login der Konsole, danach startet TUILNUX automatisch. Später: sudo tuilnux-boot.",
+    ),
+];
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Page {
     Welcome,
@@ -105,6 +124,7 @@ struct Setup {
     nvidia_found: bool,
     comp: usize,
     backend: usize,
+    login: usize,
     message: Option<String>,
     runner: Option<Runner>,
     log: VecDeque<String>,
@@ -180,6 +200,7 @@ impl Setup {
             nvidia_found,
             comp: 0,
             backend: 0,
+            login: 0,
             message: None,
             runner: None,
             log: VecDeque::new(),
@@ -223,13 +244,14 @@ impl Setup {
         let full = self.root.is_some();
         Plan {
             graphical: on(GRAPHICAL),
-            greetd: on(GREETD),
-            enable: on(ENABLE) && on(GREETD),
+            greetd: on(GREETD) && self.login == 0,
+            enable: on(ENABLE) && (on(GREETD) || self.login != 0),
             bashrc: on(BASHRC),
             font: on(FONT),
             nvidia: full && on(NVIDIA) && on(GRAPHICAL),
             tests: on(TESTS),
             backend: BACKENDS[self.backend].0,
+            login: LOGINS[self.login].0,
             locale: i18n::locale_for(self.lang_code()),
             keymap: KEYMAPS[self.keymap].1.to_string(),
         }
@@ -663,7 +685,7 @@ impl App for Setup {
                 }
             }
             Page::Components => {
-                let n = self.components.len() + 1;
+                let n = self.components.len() + 2;
                 if up {
                     self.comp = (self.comp + n - 1) % n;
                 } else if down {
@@ -672,13 +694,13 @@ impl App for Setup {
                     key.code,
                     KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right
                 ) {
+                    let back = key.code == KeyCode::Left;
+                    let cycle =
+                        |i: usize, n: usize| if back { (i + n - 1) % n } else { (i + 1) % n };
                     if self.comp == self.components.len() {
-                        let b = BACKENDS.len();
-                        self.backend = if key.code == KeyCode::Left {
-                            (self.backend + b - 1) % b
-                        } else {
-                            (self.backend + 1) % b
-                        };
+                        self.backend = cycle(self.backend, BACKENDS.len());
+                    } else if self.comp == self.components.len() + 1 {
+                        self.login = cycle(self.login, LOGINS.len());
                     } else {
                         let c = &mut self.components[self.comp];
                         c.on = !c.on;
@@ -887,6 +909,11 @@ impl Setup {
             tr("Sitzungs-Backend"),
             tr(BACKENDS[self.backend].1)
         ));
+        items.push(format!(
+            "{}: ‹ {} ›",
+            tr("Start nach dem Booten"),
+            tr(LOGINS[self.login].1)
+        ));
         let [list, help] = Layout::vertical([
             Constraint::Length(items.len() as u16 + 1),
             Constraint::Min(2),
@@ -898,7 +925,10 @@ impl Setup {
         );
         let help_text = match self.components.get(self.comp) {
             Some(c) => tr(c.help),
-            None => tr("auto: labwc, wenn installiert, sonst cage oder die Linux-Konsole."),
+            None if self.comp == self.components.len() => {
+                tr("auto: labwc, wenn installiert, sonst cage oder die Linux-Konsole.")
+            }
+            None => tr(LOGINS[self.login].2),
         };
         frame.render_widget(
             Paragraph::new(vec![dim("─".repeat(help.width as usize)), text(help_text)])
@@ -937,7 +967,8 @@ impl Setup {
         if let Some(root) = &self.root {
             lines.extend([
                 row("Grafische Programme", yes(plan.graphical).into()),
-                row("Anmeldebildschirm", format!("{}{}", yes(plan.greetd), if plan.enable { tr(", beim Booten") } else { "" })),
+                row("Anmeldebildschirm", format!("{}{}", yes(plan.greetd), if plan.enable && plan.greetd { tr(", beim Booten") } else { "" })),
+                row("Start nach dem Booten", format!("{}{}", tr(LOGINS[self.login].1), if plan.enable { "" } else { tr(" (nicht aktiviert)") })),
                 row("~/.bashrc", yes(plan.bashrc).into()),
                 row("Konsolenschrift", yes(plan.font).into()),
                 row("NVIDIA", yes(plan.nvidia).into()),

@@ -26,6 +26,8 @@ pub struct Plan {
     pub nvidia: bool,
     pub tests: bool,
     pub backend: &'static str,
+    /// greetd, autologin oder console (`install.sh --login`).
+    pub login: &'static str,
     pub locale: String,
     pub keymap: String,
 }
@@ -51,6 +53,9 @@ impl Plan {
             .into(),
         );
         a.extend(["--backend".into(), self.backend.into()]);
+        if self.login != "greetd" {
+            a.extend(["--login".into(), self.login.into()]);
+        }
         if !self.locale.is_empty() {
             a.extend(["--lang".into(), self.locale.clone()]);
         }
@@ -266,6 +271,7 @@ mod tests {
             nvidia: false,
             tests: false,
             backend: "auto",
+            login: "greetd",
             locale: "de_DE.UTF-8".into(),
             keymap: "de-latin1".into(),
         }
@@ -285,6 +291,12 @@ mod tests {
         assert_eq!(
             p.args().join(" "),
             "--yes --text --minimal --no-enable --no-tests --nvidia --backend auto"
+        );
+        p.login = "autologin";
+        assert!(
+            p.args()
+                .join(" ")
+                .ends_with("--backend auto --login autologin")
         );
     }
 

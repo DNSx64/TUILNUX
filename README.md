@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.1-5fd7af">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-5fd7af">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.85%2B-orange">
   <img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-x86__64%20%7C%20aarch64-1793d1">
   <img alt="Distros" src="https://img.shields.io/badge/Debian%20%7C%20Ubuntu%20%7C%20Fedora%20%7C%20openSUSE-.deb%20%7C%20.rpm-a8a8ff">
@@ -42,6 +42,9 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 - 🦊 GUI-Programme (Firefox, Discord, X11 über Xwayland) als echte Fenster unter **Wayland/labwc**, in Taskleiste und `tab`
 - ⏯️ GUI-Programme starten im Hintergrund – `tab --shell firefox` zeigt ihre Ausgabe
 - 🖥️🖥️ **Multimonitor**: Anordnung, Desktop-Monitor, Fenster zwischen Monitoren verschieben
+
+**Neu in 0.2.2**
+- 🚀 **Direkt booten ohne greetd**: `tuilnux-boot autologin` startet TUILNUX sofort als Login-Shell, `console` nach dem Text-Login – umschaltbar im Installer und in tsettings
 
 **Neu in 0.2.1**
 - 🐧 **Andere Distributionen**: Debian, Ubuntu, Fedora, openSUSE – `.deb`/`.rpm`-Pakete, apt/rpm-Paketquellen, `install.sh` erkennt apt, dnf und zypper
@@ -168,18 +171,33 @@ git clone https://github.com/DNSx64/TUILNUX.git && cd TUILNUX
 bash install.sh              # Assistent; --text ohne Assistent
 bash install.sh --prebuilt   # immer fertige Programme
 bash install.sh --source     # immer selbst bauen (cargo)
+bash install.sh --autologin  # ohne greetd direkt in TUILNUX booten
 ```
+
+### Direkt booten – ohne greetd
+
+TUILNUX kann auch ohne Anmeldebildschirm direkt nach dem Booten starten (getty-Autologin +
+Login-Shell). Umschalten jederzeit mit `tuilnux-boot`:
+
+```sh
+sudo tuilnux-boot autologin   # direkt in TUILNUX, ohne Passwort
+sudo tuilnux-boot console     # Text-Login, danach TUILNUX
+sudo tuilnux-boot greetd      # zurück zu tlogin
+```
+
+Hinweis: Sicherheitsschlüssel und Handy-Code gibt es nur mit tlogin (greetd).
+Details: [ANLEITUNG §3.7](docs/ANLEITUNG.md#37-direkt-booten-ohne-greetd).
 
 ### Fertige Pakete
 
-In den [Releases](https://github.com/DNSx64/TUILNUX/releases): `tuilnux-0.2.1-1-x86_64.pkg.tar.zst`
-(Arch), `tuilnux_0.2.1-1_amd64.deb`, `tuilnux-0.2.1-1.x86_64.rpm` und
-`tuilnux-0.2.1-x86_64-linux.tar.gz` (statisch, für jede Distribution: nach `/` entpacken).
+In den [Releases](https://github.com/DNSx64/TUILNUX/releases): `tuilnux-0.2.2-1-x86_64.pkg.tar.zst`
+(Arch), `tuilnux_0.2.2-1_amd64.deb`, `tuilnux-0.2.2-1.x86_64.rpm` und
+`tuilnux-0.2.2-x86_64-linux.tar.gz` (statisch, für jede Distribution: nach `/` entpacken).
 
 ```sh
-sudo pacman -U tuilnux-0.2.1-1-x86_64.pkg.tar.zst      # Arch
-sudo apt install ./tuilnux_0.2.1-1_amd64.deb           # Debian/Ubuntu
-sudo dnf install ./tuilnux-0.2.1-1.x86_64.rpm          # Fedora
+sudo pacman -U tuilnux-0.2.2-1-x86_64.pkg.tar.zst      # Arch
+sudo apt install ./tuilnux_0.2.2-1_amd64.deb           # Debian/Ubuntu
+sudo dnf install ./tuilnux-0.2.2-1.x86_64.rpm          # Fedora
 ```
 
 ➡️ Alle Optionen, Bedienung, Sprachpakete, Bildschirme, sichere Anmeldung und Fehlerbehebung:
