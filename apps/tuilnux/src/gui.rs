@@ -148,6 +148,8 @@ impl GuiWindows {
     /// Gibt die Nummer eines neu erschienenen Fensters zurück.
     pub fn apply(&mut self, event: GuiEvent, alloc: impl FnOnce() -> usize) -> Option<usize> {
         match event {
+            // Das Such-Fenster (Super+F) gehört nicht in die Taskleiste.
+            GuiEvent::Update(state) if state.app_id == crate::search::APP_ID => None,
             GuiEvent::Update(state) if state.app_id == DESKTOP_APP_ID => {
                 self.desktop_active = state.activated;
                 self.desktop = Some(state.handle);

@@ -77,10 +77,18 @@ pub fn run(config: Config) -> Result<()> {
     let prefix = Prefix::parse(&config.prefix)?;
     let (tx, rx) = mpsc::channel();
     let ipc_tx = tx.clone();
-    let server = Server::start(move |req, reply| {
+    let mut server = Server::start(move |req, reply| {
         let _ = ipc_tx.send(Msg::Ipc(req, reply));
     })
     .context("IPC-Socket konnte nicht geöffnet werden")?;
+    // Für Programme, die labwc startet (Super+F → tuilnux search --popup).
+    let _ = server.publish();
+    // Nach einem Update: erzeugte labwc-Konfiguration (Tastenkürzel …) erneuern.
+    if std::env::var("TUILNUX_BACKEND").as_deref() == Ok("labwc")
+        && let Ok(settings) = tuilnux_config::Settings::load()
+    {
+        let _ = tuilnux_config::refresh_labwc(&settings);
+    }
 
     let mut terminal = ratatui::init();
     let _ = execute!(stdout(), EnableBracketedPaste);
@@ -510,7 +518,7 @@ impl Session {
     fn message(&self) -> Option<String> {
         if self.armed {
             return Some(
-                "MANAGER  Tab 1-9 0  n neu  x zu  m min  f max  ←↑→↓ bewegen  t Tasks  ? Hilfe  Esc"
+                "MANAGER  Tab 1-9 0  n neu  a suchen  x zu  m min  f max  ←↑→↓ bewegen  t Tasks  ? Hilfe  Esc"
                     .into(),
             );
         }
@@ -570,6 +578,26 @@ impl Session {
                 self.wm.close(id);
                 Err(e)
             }
+        }
+    }
+
+    /// Programmsuche als kleines Fenster; es schließt sich nach dem Start.
+    fn open_search(&mut self) {
+        let me = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "tuilnux".into());
+        let area = desktop_area(self.size);
+        let size = (
+            area.width.saturating_sub(4).min(76),
+            area.height.saturating_sub(4).min(20),
+        );
+        if let Err(e) = self.open_window(
+            vec![me, "search".into()],
+            Some("Programme suchen".into()),
+            None,
+            Some(size),
+        ) {
+            self.notify(format!("Suche: {e:#}"));
         }
     }
 
@@ -869,6 +897,12 @@ impl Session {
             self.armed = self.command(key);
             return;
         }
+        if key.modifiers.contains(KeyModifiers::SUPER)
+            && matches!(key.code, KeyCode::Char('f' | 'F'))
+        {
+            self.open_search();
+            return;
+        }
         if self.settings.windows.quick_switch
             && let Some(id) = quick_switch(&key)
         {
@@ -919,6 +953,7 @@ impl Session {
             }
             KeyCode::Char('0' | 'd') => self.wm.focus_desktop(),
             KeyCode::Enter | KeyCode::Char('n' | 'c') => self.open_shell(),
+            KeyCode::Char('a') => self.open_search(),
             KeyCode::Char('t') => {
                 self.overlay = Some(Overlay::Tasks {
                     selected: self.selected_index(),

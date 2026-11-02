@@ -5,7 +5,7 @@
 # Bequemer: ./install.sh im Workspace-Ordner.
 
 pkgname=tuilnux
-pkgver=0.2.2
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Terminal-Desktopumgebung: Vollbild-Terminal mit Fenstern, Taskleiste, Taskmanager und TUI-Apps"
 arch=('x86_64' 'aarch64')

@@ -1,6 +1,6 @@
 # TUILNUX – Anleitung
 
-Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.2 Schritt für Schritt.
+Diese Anleitung erklärt Installation, Einrichtung und Bedienung von TUILNUX 0.2.3 Schritt für Schritt.
 Die Kurzfassung steht in der [README](../README.md).
 
 **Inhalt**
@@ -155,7 +155,7 @@ Umgebungsvariablen: `TUILNUX_CONSOLE_FONT=ter-v32n` (eigene Konsolenschrift), `T
 Jedes [Release](https://github.com/DNSx64/TUILNUX/releases) enthält ein fertiges Arch-Paket:
 
 ```sh
-sudo pacman -U tuilnux-0.2.2-1-x86_64.pkg.tar.zst
+sudo pacman -U tuilnux-0.2.3-1-x86_64.pkg.tar.zst
 sudo pacman -S --needed greetd labwc foot xorg-xwayland wlr-randr wl-clipboard terminus-font
 ```
 
@@ -253,8 +253,8 @@ GitHub. labwc, foot, greetd, Xwayland und wlr-randr werden als empfohlene Pakete
 Danach `tuilnux-setup` starten; das Paket zeigt außerdem an, wie greetd + tlogin aktiviert wird.
 
 **Einzelne Pakete** aus den [Releases](https://github.com/DNSx64/TUILNUX/releases):
-`sudo apt install ./tuilnux_0.2.2-1_amd64.deb` bzw. `sudo dnf install ./tuilnux-0.2.2-1.x86_64.rpm`.
-Für jede andere x86_64-Distribution gibt es `tuilnux-0.2.2-x86_64-linux.tar.gz` (Aufbau wie `/usr`,
+`sudo apt install ./tuilnux_0.2.3-1_amd64.deb` bzw. `sudo dnf install ./tuilnux-0.2.3-1.x86_64.rpm`.
+Für jede andere x86_64-Distribution gibt es `tuilnux-0.2.3-x86_64-linux.tar.gz` (Aufbau wie `/usr`,
 mit `sudo tar -xzf … -C /` entpacken).
 
 **install.sh** funktioniert überall: Es erkennt apt, dnf und zypper, installiert die passenden
@@ -417,6 +417,22 @@ tuilnux logout
 ```
 
 ![ttop](screenshots/ttop.png)
+
+### Programme suchen (Super+F)
+
+![Programmsuche](screenshots/suche.png)
+
+`Super+F` öffnet überall (auch wenn Firefox den Fokus hat) die Programmsuche in der Bildschirmmitte.
+Gefunden werden alle installierten Programme mit `.desktop`-Datei (auch Flatpak und
+`~/.local/share/applications`), die TUILNUX-Apps und Befehle aus dem `PATH`. Tippen filtert
+(Name, Beschreibung, Stichwörter; Groß-/Kleinschreibung egal), `↑`/`↓` wählt, `Enter` startet,
+`Esc` schließt. Grafische Programme starten im Hintergrund, Terminal-Programme öffnen sich als
+TUILNUX-Fenster. Häufig gestartete Programme stehen weiter oben (Verlauf in
+`~/.local/state/tuilnux/search-history`).
+
+Unter cage fängt der Desktop `Super+F` selbst ab und öffnet die Suche als Fenster; im reinen tty
+(dort gibt es keine Super-Taste) geht es mit `Strg+Leertaste` und dann `a`. Aus der Shell: `tuilnux search [TEXT]`; `tuilnux search --list [TEXT]` gibt die
+Treffer nur aus.
 
 ## 7. Grafische Programme und Hintergrund-Jobs
 
@@ -666,6 +682,7 @@ Protokoll: `~/.local/state/tuilnux/compositor.log`.
 | `tuilnux open\|list\|focus\|close\|min\|max\|notify\|logout` | laufende Sitzung steuern (`tuilnux help`) |
 | `tab [NAME\|NR]` · `tab --shell [NAME]` | Fenster zurückholen · Ausgabe eines Hintergrund-Programms |
 | `launch BEFEHL` | Befehl im Hintergrund starten |
+| `tuilnux search [TEXT] [--popup\|--list]` | Programme suchen und starten (`Super+F`) |
 | `tuilnux outputs [--apply]` | Bildschirme anzeigen / Einstellungen anwenden |
 | `tuilnux reload` | Einstellungen in der laufenden Sitzung neu laden |
 | `tuilnux shell-init bash` | erzeugte bashrc ausgeben |
@@ -693,6 +710,9 @@ Maus: Klick, Doppelklick, Rad, Rechtsklick = übergeordneter Ordner.
 `^Z`/`^Y` rückgängig/wiederholen · `^A` alles · `^C`/`^X`/`^V` · `^D` Zeile duplizieren ·
 `^K` Zeile löschen · `Tab`/`⇧Tab` einrücken · `^Q` beenden · `F1` Hilfe. Kopieren landet per OSC 52
 auch in der System-Zwischenablage.
+
+**Programmsuche** (`Super+F`): Tippen filtert · `↑`/`↓`/`Tab` auswählen · `Bild↑`/`Bild↓` blättern ·
+`Enter` starten · `Esc` schließen. Maus: Klick startet, Rad wählt.
 
 **ttop**: `c`/`m`/`p`/`n` sortieren · `/` filtern · `k`/`Entf` Prozess beenden · `Enter` Details ·
 `Leertaste` Pause · `q` beenden.

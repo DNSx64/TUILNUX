@@ -177,6 +177,8 @@ pub struct Server {
     token: String,
     #[cfg_attr(not(unix), allow(dead_code))]
     path: Option<PathBuf>,
+    /// Mit [`Server::publish`] geschriebene Sitzungsdatei.
+    published: Option<PathBuf>,
 }
 
 impl Server {
@@ -237,6 +239,7 @@ impl Server {
             address: format!("unix:{}", path.display()),
             token,
             path: Some(path),
+            published: None,
         })
     }
 
@@ -261,7 +264,25 @@ impl Server {
             address: format!("tcp:{addr}"),
             token,
             path: None,
+            published: None,
         })
+    }
+}
+
+impl Server {
+    /// Veröffentlicht Adresse und Token in [`session_file`], damit auch Programme
+    /// die Sitzung finden, die nicht von ihr gestartet wurden (Tastenkürzel des
+    /// Compositors wie Super+F). Die Datei liegt im privaten `$XDG_RUNTIME_DIR`.
+    pub fn publish(&mut self) -> io::Result<()> {
+        let path = session_file()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "$XDG_RUNTIME_DIR fehlt"))?;
+        self.publish_to(path)
+    }
+
+    fn publish_to(&mut self, path: PathBuf) -> io::Result<()> {
+        write_private(&path, &format!("{}\n{}\n", self.address, self.token))?;
+        self.published = Some(path);
+        Ok(())
     }
 }
 
@@ -270,7 +291,60 @@ impl Drop for Server {
         if let Some(path) = &self.path {
             let _ = std::fs::remove_file(path);
         }
+        // Nur entfernen, wenn keine neuere Sitzung die Datei übernommen hat.
+        if let Some(path) = &self.published
+            && read_session(path).is_some_and(|(address, _)| address == self.address)
+        {
+            let _ = std::fs::remove_file(path);
+        }
     }
+}
+
+/// `$XDG_RUNTIME_DIR/tuilnux/session`: Adresse und Token der laufenden Sitzung.
+pub fn session_file() -> Option<PathBuf> {
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute() && p.is_dir())
+        .map(|p| p.join("tuilnux").join("session"))
+}
+
+/// Schreibt `content` atomar in eine nur für den Benutzer lesbare Datei (0600,
+/// Ordner 0700).
+fn write_private(path: &std::path::Path, content: &str) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "kein Ordner"))?;
+    let tmp = dir.join(format!(".session-{}", std::process::id()));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)?;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        let _ = std::fs::remove_file(&tmp);
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&tmp)?;
+        file.write_all(content.as_bytes())?;
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(dir)?;
+        std::fs::write(&tmp, content)?;
+    }
+    std::fs::rename(&tmp, path)
+}
+
+fn read_session(path: &std::path::Path) -> Option<(String, String)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let mut lines = text.lines();
+    let address = lines.next()?.trim().to_string();
+    let token = lines.next().unwrap_or_default().trim().to_string();
+    (!address.is_empty()).then_some((address, token))
 }
 
 fn exchange<S: Read + Write>(mut stream: S, line: &str) -> io::Result<Response> {
@@ -312,16 +386,32 @@ pub fn request(address: &str, token: &str, request: Request) -> io::Result<Respo
     ))
 }
 
-/// Sendet eine Anfrage an die Sitzung, in der dieser Prozess läuft (aus der Umgebung).
+/// Sendet eine Anfrage an die Sitzung, in der dieser Prozess läuft (aus der
+/// Umgebung, sonst aus der von der Sitzung veröffentlichten [`session_file`]).
 pub fn request_env(req: Request) -> io::Result<Response> {
-    let address = std::env::var(SOCK_ENV).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "keine TUILNUX-Sitzung gefunden ($TUILNUX_SOCK fehlt)",
-        )
-    })?;
-    let token = std::env::var(TOKEN_ENV).unwrap_or_default();
-    request(&address, &token, req)
+    let (address, token) = match std::env::var(SOCK_ENV) {
+        Ok(address) => (address, std::env::var(TOKEN_ENV).unwrap_or_default()),
+        Err(_) => session_file()
+            .and_then(|p| read_session(&p))
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "keine TUILNUX-Sitzung gefunden ($TUILNUX_SOCK fehlt)",
+                )
+            })?,
+    };
+    match request(&address, &token, req) {
+        // Veraltete Sitzungsdatei (Sitzung abgestürzt): wie keine Sitzung behandeln.
+        Err(e)
+            if matches!(
+                e.kind(),
+                io::ErrorKind::ConnectionRefused | io::ErrorKind::NotFound
+            ) && std::env::var_os(SOCK_ENV).is_none() =>
+        {
+            Err(io::Error::new(io::ErrorKind::NotFound, e))
+        }
+        other => other,
+    }
 }
 
 #[cfg(test)]
@@ -404,6 +494,42 @@ mod tests {
             Response::Error { .. }
         ));
         assert!(request("nirgendwo", &token, Request::List).is_err());
+    }
+
+    #[test]
+    fn published_session_file_is_private_and_cleaned_up() {
+        let dir = std::env::temp_dir().join(format!("tuilnux-ipc-test-{}", random_token()));
+        let path = dir.join("tuilnux").join("session");
+        let mut server = Server::start(|_req, reply| {
+            let _ = reply.send(Response::Ok);
+        })
+        .unwrap();
+        server.publish_to(path.clone()).unwrap();
+        let (address, token) = read_session(&path).unwrap();
+        assert_eq!(
+            (address.as_str(), token.as_str()),
+            (server.address(), server.token())
+        );
+        assert_eq!(
+            request(&address, &token, Request::List).unwrap(),
+            Response::Ok
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode =
+                |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode(&path), 0o600);
+            assert_eq!(mode(path.parent().unwrap()), 0o700);
+        }
+        // Eine neuere Sitzung hat die Datei übernommen: nicht löschen.
+        let mut newer = Server::start(|_req, _reply| {}).unwrap();
+        newer.publish_to(path.clone()).unwrap();
+        drop(server);
+        assert!(path.exists());
+        drop(newer);
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

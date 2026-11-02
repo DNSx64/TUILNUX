@@ -5,10 +5,12 @@
 //! Fenster darüber. Mit Argumenten steuert `tuilnux` eine laufende Sitzung.
 
 mod account;
+mod apps;
 mod cli;
 mod config;
 mod draw;
 mod gui;
+mod search;
 mod session;
 
 use anyhow::{Result, bail};
@@ -20,6 +22,10 @@ tuilnux – TUILNUX-Desktop: Terminal als Desktop, Fenster, Taskleiste, Taskmana
 Sitzung:
   tuilnux                       Sitzung starten (von tlogin/greetd oder im TTY)
   tuilnux --force               auch innerhalb einer Sitzung starten
+
+Programme suchen (Super+F, im TTY: Präfix, dann a):
+  tuilnux search [TEXT]         installierte Programme suchen und starten
+  tuilnux search --list [TEXT]  Treffer nur ausgeben
 
 Steuern (aus einer Shell in der Sitzung):
   tuilnux open [-t TITEL] [-s 100x30] [--] BEFEHL …
@@ -43,6 +49,7 @@ Steuern (aus einer Shell in der Sitzung):
 Tasten (Präfix, Standard Strg+Leertaste, danach):
   Tab  1-9  0     Fenster wechseln, Desktop
   Enter / n       neues Terminal-Fenster
+  a               Programme suchen (ohne Präfix: Super+F)
   t               Taskmanager      ?  Hilfe
   x  m  f         schließen, minimieren, maximieren
   ←↑→↓ / Shift    verschieben / Größe ändern
@@ -103,6 +110,7 @@ fn real_main() -> Result<()> {
             print!("{}", tuilnux_config::bash_init(&settings, &apps));
             Ok(())
         }
+        Some("search") => search::run(&args[1..]),
         Some("outputs") => outputs(args.get(1).map(String::as_str)),
         Some("otp") => account::otp(&args[1..]),
         Some("key") => account::key(&args[1..]),

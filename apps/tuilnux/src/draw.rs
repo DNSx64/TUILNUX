@@ -197,6 +197,7 @@ pub const HELP: &[(&str, &str)] = &[
     ("1 … 9", "Fenster mit dieser Nummer"),
     ("0 / d", "Desktop (Vollbild-Terminal)"),
     ("Enter / n", "neues Terminal-Fenster"),
+    ("a / Super+F", "Programme suchen und starten"),
     ("t", "Taskmanager"),
     ("s", "Einstellungen (tsettings)"),
     ("x", "Fenster schließen"),

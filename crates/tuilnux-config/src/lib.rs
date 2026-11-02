@@ -27,7 +27,8 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
 pub use generate::{
-    Applied, apply, gtk_settings, labwc_environment, labwc_rc, labwc_theme, merge_ini, session_conf,
+    Applied, apply, gtk_settings, labwc_environment, labwc_rc, labwc_theme, merge_ini,
+    refresh_labwc, session_conf,
 };
 
 /// Umgebungsvariable, die den Pfad der Einstellungsdatei überschreibt.
@@ -97,8 +98,8 @@ pub use login::{
     SecretDisplay, U2F_KEYS_FILE, U2F_ORIGIN, faillock_conf, pam_greetd, u2f_key_count,
 };
 pub use shell::{
-    BashSettings, PathStyle, PromptStyle, bash_init, desktop_program, gui_programs, local_bashrc,
-    prompt_code, prompt_preview,
+    BashSettings, PathStyle, PromptStyle, application_dirs, bash_init, desktop_program,
+    gui_programs, local_bashrc, prompt_code, prompt_preview,
 };
 
 choice!(

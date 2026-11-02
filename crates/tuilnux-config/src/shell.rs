@@ -664,11 +664,12 @@ fn in_path(program: &str) -> bool {
         .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(program).is_file()))
 }
 
-/// Ordner mit `.desktop`-Dateien nach XDG.
-fn application_dirs() -> Vec<PathBuf> {
+/// Ordner mit `.desktop`-Dateien nach XDG, wichtigster zuerst.
+pub fn application_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(data) = dirs::data_dir() {
         dirs.push(data.join("applications"));
+        dirs.push(data.join("flatpak/exports/share/applications"));
     }
     let system = std::env::var("XDG_DATA_DIRS")
         .ok()

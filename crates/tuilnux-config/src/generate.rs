@@ -83,6 +83,7 @@ pub fn labwc_rc(s: &Settings) -> String {
     Dazu von TUILNUX:
       Super+Unten  minimieren      Super+Oben  maximieren umschalten
       Super+Umschalt+Links/Rechts  Fenster auf den anderen Bildschirm
+      Super+F      Programme suchen und starten (tuilnux search)
     Strg+Leertaste bleibt frei für den TUILNUX-Manager.
   -->
   <keyboard>
@@ -101,6 +102,9 @@ pub fn labwc_rc(s: &Settings) -> String {
     </keybind>
     <keybind key="W-S-Right">
       <action name="MoveToOutput" direction="right" wrap="yes" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="Execute" command="tuilnux search --popup" />
     </keybind>
   </keyboard>
 
@@ -124,6 +128,11 @@ pub fn labwc_rc(s: &Settings) -> String {
     <windowRule identifier="tuilnux-desktop" serverDecoration="no" skipTaskbar="yes"
                 skipWindowSwitcher="yes" fixedPosition="yes">
       <action name="ToggleAlwaysOnBottom" />{desktop_output}
+    </windowRule>
+    <windowRule identifier="tuilnux-search" serverDecoration="no" skipTaskbar="yes"
+                skipWindowSwitcher="yes">
+      <action name="AutoPlace" policy="center" />
+      <action name="ToggleAlwaysOnTop" />
     </windowRule>
   </windowRules>
 </labwc_config>
@@ -344,6 +353,33 @@ fn quiet(cmd: &mut Command) -> bool {
         .stderr(Stdio::null())
         .status()
         .is_ok_and(|s| s.success())
+}
+
+/// Bringt eine vorhandene, von tsettings erzeugte labwc-Konfiguration auf den
+/// Stand dieser Version (z. B. neue Tastenkürzel nach einem Update) und lädt
+/// labwc neu. Gibt zurück, ob sich etwas geändert hat.
+pub fn refresh_labwc(s: &Settings) -> Result<bool> {
+    let Some(dir) = config_dir() else {
+        return Ok(false);
+    };
+    let labwc = dir.join("labwc");
+    if !labwc.join("rc.xml").is_file() {
+        return Ok(false);
+    }
+    let mut applied = Applied::default();
+    write(&labwc.join("rc.xml"), &labwc_rc(s), &mut applied)?;
+    write(
+        &labwc.join("themerc-override"),
+        &labwc_theme(s),
+        &mut applied,
+    )?;
+    if applied.written.is_empty() {
+        return Ok(false);
+    }
+    if std::env::var_os("LABWC_PID").is_some() && have("labwc") {
+        quiet(Command::new("labwc").arg("--reconfigure"));
+    }
+    Ok(true)
 }
 
 /// Speichert die Einstellungen und überträgt sie auf labwc, GTK und die Sitzung.

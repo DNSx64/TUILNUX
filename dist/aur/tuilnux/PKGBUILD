@@ -1,7 +1,7 @@
 # Maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
 
 pkgname=tuilnux
-pkgver=0.2.2
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Terminal desktop environment: fullscreen terminal with windows, taskbar, task manager and TUI apps"
 arch=('x86_64' 'aarch64')

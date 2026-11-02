@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-5fd7af">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.3-5fd7af">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.85%2B-orange">
   <img alt="Arch Linux" src="https://img.shields.io/badge/Arch%20Linux-x86__64%20%7C%20aarch64-1793d1">
   <img alt="Distros" src="https://img.shields.io/badge/Debian%20%7C%20Ubuntu%20%7C%20Fedora%20%7C%20openSUSE-.deb%20%7C%20.rpm-a8a8ff">
@@ -42,6 +42,9 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 - 🦊 GUI-Programme (Firefox, Discord, X11 über Xwayland) als echte Fenster unter **Wayland/labwc**, in Taskleiste und `tab`
 - ⏯️ GUI-Programme starten im Hintergrund – `tab --shell firefox` zeigt ihre Ausgabe
 - 🖥️🖥️ **Multimonitor**: Anordnung, Desktop-Monitor, Fenster zwischen Monitoren verschieben
+
+**Neu in 0.2.3**
+- 🔎 **Programmsuche mit `Super+F`**: installierte Programme (.desktop, Flatpak, TUILNUX-Apps, Befehle) suchen und starten – häufig benutzte zuerst
 
 **Neu in 0.2.2**
 - 🚀 **Direkt booten ohne greetd**: `tuilnux-boot autologin` startet TUILNUX sofort als Login-Shell, `console` nach dem Text-Login – umschaltbar im Installer und in tsettings
@@ -83,6 +86,8 @@ laufen als echte Wayland-Fenster, und ihre Shell blockiert nie.
 | ![Einstellungen](docs/screenshots/settings-farbschema.png) | ![Shell](docs/screenshots/settings-shell.png) |
 | **Bildschirme** | **Sprache: English** |
 | ![Bildschirme](docs/screenshots/settings-bildschirme.png) | ![English](docs/screenshots/settings-english.png) |
+| **Programmsuche (`Super+F`)** | |
+| ![Suche](docs/screenshots/suche.png) | |
 | **Firefox als Fenster** | **Systemmonitor** |
 | ![Firefox](docs/screenshots/firefox.png) | ![ttop](docs/screenshots/ttop.png) |
 
@@ -190,14 +195,14 @@ Details: [ANLEITUNG §3.7](docs/ANLEITUNG.md#37-direkt-booten-ohne-greetd).
 
 ### Fertige Pakete
 
-In den [Releases](https://github.com/DNSx64/TUILNUX/releases): `tuilnux-0.2.2-1-x86_64.pkg.tar.zst`
-(Arch), `tuilnux_0.2.2-1_amd64.deb`, `tuilnux-0.2.2-1.x86_64.rpm` und
-`tuilnux-0.2.2-x86_64-linux.tar.gz` (statisch, für jede Distribution: nach `/` entpacken).
+In den [Releases](https://github.com/DNSx64/TUILNUX/releases): `tuilnux-0.2.3-1-x86_64.pkg.tar.zst`
+(Arch), `tuilnux_0.2.3-1_amd64.deb`, `tuilnux-0.2.3-1.x86_64.rpm` und
+`tuilnux-0.2.3-x86_64-linux.tar.gz` (statisch, für jede Distribution: nach `/` entpacken).
 
 ```sh
-sudo pacman -U tuilnux-0.2.2-1-x86_64.pkg.tar.zst      # Arch
-sudo apt install ./tuilnux_0.2.2-1_amd64.deb           # Debian/Ubuntu
-sudo dnf install ./tuilnux-0.2.2-1.x86_64.rpm          # Fedora
+sudo pacman -U tuilnux-0.2.3-1-x86_64.pkg.tar.zst      # Arch
+sudo apt install ./tuilnux_0.2.3-1_amd64.deb           # Debian/Ubuntu
+sudo dnf install ./tuilnux-0.2.3-1.x86_64.rpm          # Fedora
 ```
 
 ➡️ Alle Optionen, Bedienung, Sprachpakete, Bildschirme, sichere Anmeldung und Fehlerbehebung:
@@ -212,6 +217,7 @@ sudo dnf install ./tuilnux-0.2.2-1.x86_64.rpm          # Fedora
 | `tab` · `tab firefox` · `Strg+Alt+1…9` | Fenster auflisten · zurückholen |
 | `tab --shell firefox` | Ausgabe eines Hintergrund-Programms |
 | `bild foto` · `bild` · `Alt+V` | Bild anzeigen · aus der Zwischenablage einfügen |
+| `Super+F` · `tuilnux search` | installierte Programme suchen und starten |
 | `settings` | Einstellungen |
 | `Strg+Leertaste` dann `?` | Manager-Modus und Hilfe |
 | `tuilnux outputs` | Monitore, Auflösungen und Hz |

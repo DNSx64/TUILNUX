@@ -61,6 +61,7 @@
     Dazu von TUILNUX:
       Super+Unten  minimieren      Super+Oben  maximieren umschalten
       Super+Umschalt+Links/Rechts  Fenster auf den anderen Bildschirm
+      Super+F      Programme suchen und starten (tuilnux search)
     Strg+Leertaste bleibt frei für den TUILNUX-Manager.
   -->
   <keyboard>
@@ -79,6 +80,9 @@
     </keybind>
     <keybind key="W-S-Right">
       <action name="MoveToOutput" direction="right" wrap="yes" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="Execute" command="tuilnux search --popup" />
     </keybind>
   </keyboard>
 
@@ -102,6 +106,11 @@
     <windowRule identifier="tuilnux-desktop" serverDecoration="no" skipTaskbar="yes"
                 skipWindowSwitcher="yes" fixedPosition="yes">
       <action name="ToggleAlwaysOnBottom" />
+    </windowRule>
+    <windowRule identifier="tuilnux-search" serverDecoration="no" skipTaskbar="yes"
+                skipWindowSwitcher="yes">
+      <action name="AutoPlace" policy="center" />
+      <action name="ToggleAlwaysOnTop" />
     </windowRule>
   </windowRules>
 </labwc_config>
