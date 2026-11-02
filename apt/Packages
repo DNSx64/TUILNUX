@@ -1,0 +1,24 @@
+Package: tuilnux
+Architecture: amd64
+Version: 0.2.3-1
+Priority: optional
+Section: x11
+Maintainer: Jonas Ziegler <248628892+DNSx64@users.noreply.github.com>
+Bugs: https://github.com/DNSx64/TUILNUX/issues
+Installed-Size: 38399
+Depends: bash
+Recommends: greetd, labwc, foot, xwayland, wlr-randr, wl-clipboard, fonts-dejavu-core
+Suggests: libpam-u2f, libpam-google-authenticator, cage, gpm
+Filename: ./tuilnux_0.2.3-1_amd64.deb
+Size: 16285556
+MD5sum: 11d4fdba404503f8ac5e7a2707a99c4c
+SHA1: 6e8f9bdcea3f8845b2935526712ebc9ad613e7d4
+SHA256: d8f657203e65018a3c911485c2f75a0f1fac8ca9b73d2f4db358af9aa2becba2
+SHA512: 2f5341f12df88744ccef7b33bf13ee994c9d728a653eb3cf46f70f42bfe6143dc0129d831a4e2d21e1997ced669c74b6b4093ed38fd23b379b53e2560f99c9bb
+Homepage: https://github.com/DNSx64/TUILNUX
+Description: Terminal-Desktopumgebung: Vollbild-Terminal mit Fenstern, Taskleiste,
+ Taskmanager und TUI-Apps.
+ Enthält tuilnux, tterm, tlogin (greetd-Greeter), tfiles, tedit, ttop,
+ tsettings, asciia, tview, wallpaper und tuilnux-setup. Die Programme sind
+ statisch gelinkt und laufen auf jeder x86_64-Distribution.
+

@@ -1,0 +1,16 @@
+Date: Mon, 02 Nov 2026 22:42:44 +0000
+Label: TUILNUX
+Origin: TUILNUX
+Suite: stable
+MD5Sum:
+ e6fef548085a908bc1fb777c983aab5b             1099 Packages
+ 10af608589593419b08e8216cc93923a              766 Packages.gz
+SHA1:
+ 66bc5b46304efc5bd10ac0baf83335692c423600             1099 Packages
+ 9cd76f87ea3e953ccf892d6a7fffabcf45c29d35              766 Packages.gz
+SHA256:
+ ae55e7cc6cd00fc6f4b809549922e67dbbe2312c77e3c4448cbe54ef62cbbed8             1099 Packages
+ 1654f35dfc794a453398f013ebd6e0b226eddfc92d5bbd3ccbdf9b21384a8a6b              766 Packages.gz
+SHA512:
+ f983f1d95456dd8ec9ea38639b29cc7eeb7337e99e70d8661a9a54fb9fdc933f16f4e8720e406c238b01fdd171473db00290c652df6665e62f328eabdeb197ff             1099 Packages
+ d98d779d661cc27bf4e2dd3981acb5bb55d00664ec022abca7086260f7c8352911e353b418d9e36bd24a16510267733730aee2af046b3ce4fd9d1a7a5ede970d              766 Packages.gz

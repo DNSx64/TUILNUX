@@ -1,0 +1,6 @@
+[tuilnux]
+name=TUILNUX
+baseurl=https://dnsx64.github.io/TUILNUX/rpm
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0

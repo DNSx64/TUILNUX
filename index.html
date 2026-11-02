@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>TUILNUX – Paketquellen</title>
+<style>body{font-family:monospace;max-width:52em;margin:2em auto;padding:0 1em;background:#111;color:#ddd}
+a{color:#6cf}pre{background:#222;padding:.8em;overflow-x:auto}</style></head><body>
+<h1>TUILNUX – Paketquellen</h1>
+<p>Projekt: <a href="https://github.com/DNSx64/TUILNUX">github.com/DNSx64/TUILNUX</a></p>
+<h2>Debian / Ubuntu / Mint</h2>
+<pre>echo 'deb [trusted=yes] https://dnsx64.github.io/TUILNUX/apt ./' | sudo tee /etc/apt/sources.list.d/tuilnux.list
+sudo apt update &amp;&amp; sudo apt install tuilnux</pre>
+<h2>Fedora</h2>
+<pre>sudo curl -fsSLo /etc/yum.repos.d/tuilnux.repo https://dnsx64.github.io/TUILNUX/rpm/tuilnux.repo
+sudo dnf install tuilnux</pre>
+<h2>openSUSE</h2>
+<pre>sudo zypper ar -G -f https://dnsx64.github.io/TUILNUX/rpm tuilnux
+sudo zypper in tuilnux</pre>
+<h2>Arch Linux</h2>
+<p>Siehe <a href="https://github.com/DNSx64/TUILNUX#installation">README</a> (pacman-Repo bzw. AUR-PKGBUILD).</p>
+<p>Danach einmal <code>tuilnux-setup</code> starten (Sprache, Tastatur, Bildschirm).</p>
+</body></html>
